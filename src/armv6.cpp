@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <stdexcept>
+#include <string>
 
 namespace {
 constexpr std::uint32_t FLAG_N = 1u << 31;
