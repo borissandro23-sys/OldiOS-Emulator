@@ -52,5 +52,5 @@ private:
     bool conditionPassed(std::uint32_t condition) const;
     void setNz(std::uint32_t value);
     void execute(std::uint32_t instruction, std::uint32_t instructionAddress);
-    void executeThumb(std::uint16_t instruction, std::uint32_t instructionAddress);
+    void executeThumb(std::uint32_t instruction, std::uint32_t instructionAddress);
 };
