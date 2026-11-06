@@ -7,9 +7,12 @@
 
 #include "ipa_loader.hpp"
 #include "macho_loader.hpp"
+#include "armv6.hpp"
 
 #include <filesystem>
 #include <string>
+#include <sstream>
+#include <iomanip>
 
 namespace {
 constexpr int SCREEN_WIDTH = 320;
@@ -85,6 +88,24 @@ void openIpa(HWND window) {
             InvalidateRect(window, nullptr, TRUE);
             return;
         }
+        std::wstring cpuDetails;
+        try {
+            if (image.bigEndian) {
+                throw std::runtime_error("Big-endian ARM Mach-O is not supported by this ARM interpreter.");
+            }
+            Armv6 cpu;
+            cpu.loadImage(image);
+            std::wostringstream instructionText;
+            instructionText << L"0x" << std::uppercase << std::hex
+                            << std::setw(8) << std::setfill(L'0')
+                            << cpu.peek32(image.entryPoint);
+            cpuDetails = L"\n\nARM memory loaded.\nPC: " +
+                std::to_wstring(cpu.reg(15)) +
+                L"\nFirst instruction: " + instructionText.str() +
+                L"\nInstruction execution: NOT STARTED";
+        } catch (const std::exception& error) {
+            cpuDetails = L"\n\nARM memory loading failed:\n" + utf8ToWide(error.what());
+        }
         const std::wstring details =
             L"Mach-O executable extracted and validated.\n"
             L"Mapped segments: " + std::to_wstring(image.segments.size()) +
@@ -101,7 +122,8 @@ void openIpa(HWND window) {
             std::to_wstring(info.executableSize) +
             L" bytes\n\nSaved to:\n" +
             info.executablePath.wstring() +
-            L"\n\nThe app has NOT been executed yet.";
+            cpuDetails +
+            L"\n\nThe app has NOT been executed.";
         MessageBoxW(window, details.c_str(), L"Mach-O Loader", MB_OK | MB_ICONINFORMATION);
     } else {
         ipaStatus = L"IPA: ошибка загрузки Mach-O";
