@@ -251,17 +251,122 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
         const unsigned rd = (ins >> 12) & 0xF;
 
         std::uint32_t operand2 = 0;
+        bool shifterCarry = (cpsr_ & FLAG_C) != 0;
+
         if (immediate) {
             const unsigned rotate = ((ins >> 8) & 0xF) * 2;
             const std::uint32_t value = ins & 0xFFu;
-            operand2 = rotate == 0 ? value :
-                ((value >> rotate) | (value << (32 - rotate)));
-        } else {
-            if ((ins & 0xFF0u) != 0) {
-                throw std::runtime_error("Shifted register operands are not implemented yet.");
+            if (rotate == 0) {
+                operand2 = value;
+            } else {
+                operand2 = (value >> rotate) | (value << (32 - rotate));
+                shifterCarry = (operand2 >> 31) != 0;
             }
+        } else {
             const unsigned rm = ins & 0xF;
-            operand2 = rm == 15 ? address + 8 : regs_[rm];
+            const std::uint32_t rmValue = rm == 15 ? address + 8 : regs_[rm];
+            const unsigned shiftType = (ins >> 5) & 0x3;
+            const bool registerShift = (ins & (1u << 4)) != 0;
+            unsigned amount = 0;
+
+            if (registerShift) {
+                if ((ins & (1u << 7)) != 0) {
+                    throw std::runtime_error("Invalid ARM register-shift encoding.");
+                }
+                const unsigned rs = (ins >> 8) & 0xF;
+                amount = (rs == 15 ? address + 8 : regs_[rs]) & 0xFFu;
+                if (amount == 0) {
+                    operand2 = rmValue;
+                } else {
+                    switch (shiftType) {
+                    case 0: // LSL
+                        if (amount < 32) {
+                            shifterCarry = ((rmValue >> (32 - amount)) & 1u) != 0;
+                            operand2 = rmValue << amount;
+                        } else if (amount == 32) {
+                            shifterCarry = (rmValue & 1u) != 0;
+                            operand2 = 0;
+                        } else {
+                            shifterCarry = false;
+                            operand2 = 0;
+                        }
+                        break;
+                    case 1: // LSR
+                        if (amount < 32) {
+                            shifterCarry = ((rmValue >> (amount - 1)) & 1u) != 0;
+                            operand2 = rmValue >> amount;
+                        } else if (amount == 32) {
+                            shifterCarry = (rmValue >> 31) != 0;
+                            operand2 = 0;
+                        } else {
+                            shifterCarry = false;
+                            operand2 = 0;
+                        }
+                        break;
+                    case 2: // ASR
+                        if (amount < 32) {
+                            shifterCarry = ((rmValue >> (amount - 1)) & 1u) != 0;
+                            const std::int32_t signedValue = static_cast<std::int32_t>(rmValue);
+                            operand2 = static_cast<std::uint32_t>(signedValue >> amount);
+                        } else {
+                            shifterCarry = (rmValue >> 31) != 0;
+                            operand2 = shifterCarry ? 0xFFFFFFFFu : 0u;
+                        }
+                        break;
+                    case 3: // ROR
+                        amount &= 31u;
+                        if (amount == 0) {
+                            operand2 = rmValue;
+                            shifterCarry = (rmValue >> 31) != 0;
+                        } else {
+                            operand2 = (rmValue >> amount) | (rmValue << (32 - amount));
+                            shifterCarry = (operand2 >> 31) != 0;
+                        }
+                        break;
+                    }
+                }
+            } else {
+                amount = (ins >> 7) & 0x1Fu;
+                switch (shiftType) {
+                case 0: // LSL
+                    if (amount != 0) {
+                        shifterCarry = ((rmValue >> (32 - amount)) & 1u) != 0;
+                        operand2 = rmValue << amount;
+                    } else {
+                        operand2 = rmValue;
+                    }
+                    break;
+                case 1: // LSR; immediate zero means 32
+                    if (amount == 0) {
+                        shifterCarry = (rmValue >> 31) != 0;
+                        operand2 = 0;
+                    } else {
+                        shifterCarry = ((rmValue >> (amount - 1)) & 1u) != 0;
+                        operand2 = rmValue >> amount;
+                    }
+                    break;
+                case 2: // ASR; immediate zero means 32
+                    if (amount == 0) {
+                        shifterCarry = (rmValue >> 31) != 0;
+                        operand2 = shifterCarry ? 0xFFFFFFFFu : 0u;
+                    } else {
+                        shifterCarry = ((rmValue >> (amount - 1)) & 1u) != 0;
+                        const std::int32_t signedValue = static_cast<std::int32_t>(rmValue);
+                        operand2 = static_cast<std::uint32_t>(signedValue >> amount);
+                    }
+                    break;
+                case 3: // ROR; immediate zero means RRX
+                    if (amount == 0) {
+                        operand2 = (static_cast<std::uint32_t>(shifterCarry) << 31) |
+                                   (rmValue >> 1);
+                        shifterCarry = (rmValue & 1u) != 0;
+                    } else {
+                        operand2 = (rmValue >> amount) | (rmValue << (32 - amount));
+                        shifterCarry = (operand2 >> 31) != 0;
+                    }
+                    break;
+                }
+            }
         }
 
         const std::uint32_t left = rn == 15 ? address + 8 : regs_[rn];
@@ -310,6 +415,9 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
                 cpsr_ &= ~(FLAG_C | FLAG_V);
                 if (carry) cpsr_ |= FLAG_C;
                 if (overflow) cpsr_ |= FLAG_V;
+            } else {
+                cpsr_ &= ~FLAG_C;
+                if (shifterCarry) cpsr_ |= FLAG_C;
             }
         }
         return;
