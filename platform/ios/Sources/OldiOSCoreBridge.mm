@@ -98,4 +98,49 @@
     }
 }
 
+
++ (NSString *)traceIPAAtPath:(NSString *)path instructionLimit:(NSUInteger)instructionLimit {
+    try {
+        IpaInfo ipa;
+        const std::filesystem::path ipaPath(path.fileSystemRepresentation);
+        if (!loadIpaExecutable(ipaPath, ipa)) return [NSString stringWithFormat:@"IPA analysis failed:\\n%s", ipa.error.c_str()];
+        MachOImage image;
+        std::string error;
+        if (!loadMachOImage(ipa.executablePath, image, error)) return [NSString stringWithFormat:@"Mach-O parsing failed:\\n%s", error.c_str()];
+        if (image.bigEndian) return @"Выполнение остановлено: big-endian ARM Mach-O не поддерживается.";
+
+        Armv6 cpu;
+        cpu.loadImage(image);
+        const NSUInteger limit = std::max<NSUInteger>(1, std::min<NSUInteger>(instructionLimit, 1000));
+        NSUInteger completed = 0;
+        std::string fault;
+        for (; completed < limit && !cpu.halted(); ++completed) {
+            try {
+                cpu.step();
+            } catch (const std::exception& exception) {
+                fault = exception.what();
+                break;
+            }
+        }
+
+        std::ostringstream report;
+        report << "Пошаговое выполнение ARMv6\\nВыполнено инструкций: " << std::dec << completed;
+        report << "\\nPC: 0x" << std::uppercase << std::hex << std::setw(8) << std::setfill('0') << cpu.reg(15);
+        report << "\\nSP: 0x" << std::setw(8) << cpu.reg(13) << "\\nCPSR: 0x" << std::setw(8) << cpu.cpsr();
+        report << "\\n\\nПоследние инструкции (PC / opcode / результат):\\n";
+        for (const auto& entry : cpu.recentTrace()) {
+            report << "0x" << std::setw(8) << entry.pc << "  0x" << std::setw(8) << entry.instruction
+                   << (entry.completed ? "  OK\\n" : "  FAULT\\n");
+        }
+        if (!fault.empty()) report << "\\nПервая ошибка: " << fault;
+        else if (cpu.halted()) report << "\\nПроцессор достиг тестового стоп-маркера.";
+        else report << "\\nДостигнут лимит инструкций; выполнение безопасно остановлено.";
+        report << "\\n\\nЭто диагностическое выполнение, не запуск UIKit-приложения.";
+        const std::string result = report.str();
+        return [NSString stringWithUTF8String:result.c_str()];
+    } catch (const std::exception& exception) {
+        return [NSString stringWithFormat:@"ARM trace setup failed: %s", exception.what()];
+    }
+}
+
 @end
