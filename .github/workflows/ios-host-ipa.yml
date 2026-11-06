@@ -1,0 +1,55 @@
+name: Build iOS host IPA
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "platform/ios/**"
+      - "src/armv6.cpp"
+      - "src/ipa_loader.cpp"
+      - "src/macho_loader.cpp"
+      - "include/armv6.hpp"
+      - "include/ipa_loader.hpp"
+      - "include/macho_loader.hpp"
+      - "third_party/miniz*"
+      - ".github/workflows/ios-host-ipa.yml"
+
+# Keep only the newest IPA build for this branch. A newer commit cancels
+# an older in-progress run and replaces an older pending run.
+concurrency:
+  group: ios-host-ipa-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-ipa:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        working-directory: platform/ios
+        run: xcodegen generate
+      - name: Build unsigned iOS app
+        working-directory: platform/ios
+        run: |
+          xcodebuild \
+            -project OldiOSHost.xcodeproj \
+            -scheme OldiOSHost \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Package IPA
+        run: |
+          APP_PATH="platform/ios/build/Build/Products/Release-iphoneos/OldiOS.app"
+          test -d "$APP_PATH"
+          mkdir -p dist/Payload
+          cp -R "$APP_PATH" dist/Payload/
+          cd dist
+          zip -qry OldiOSHost-core-integration.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OldiOSHost-core-integration-IPA
+          path: dist/OldiOSHost-core-integration.ipa
+          if-no-files-found: error

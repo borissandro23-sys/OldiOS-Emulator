@@ -1,0 +1,9 @@
+Package: com.oldios.launcher
+Name: OldiOS Launcher (scaffold)
+Version: 0.1.0
+Architecture: iphoneos-arm64
+Description: Initial rootless Theos package scaffold for the OldiOS project. No app-launch interception is implemented yet.
+Maintainer: OldiOS Emulator contributors
+Author: OldiOS Emulator contributors
+Section: Tweaks
+Depends: mobilesubstrate

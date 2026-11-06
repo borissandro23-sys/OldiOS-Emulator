@@ -229,10 +229,18 @@ bool loadMachOImage(const std::filesystem::path& path, MachOImage& image, std::s
                 state += 8;
                 const std::uint64_t stateBytes = std::uint64_t(count) * 4;
                 if (stateBytes > cmdEnd - state) break;
-                // ARM_THREAD_STATE: r0-r15, CPSR; PC is register r15.
+                // ARM_THREAD_STATE contains r0-r15 followed by CPSR (17 words).
+                // Preserve the complete state so the CPU starts in the correct ARM/Thumb mode.
                 if (flavor == 1u && count >= 16u) {
-                    image.entryPoint = read32(bytes, state + 15u * 4u, be);
+                    for (std::size_t reg = 0; reg < image.initialRegisters.size(); ++reg) {
+                        image.initialRegisters[reg] = read32(bytes, state + reg * 4u, be);
+                    }
+                    image.entryPoint = image.initialRegisters[15];
                     image.hasEntryPoint = true;
+                    if (count >= 17u) {
+                        image.initialCpsr = read32(bytes, state + 16u * 4u, be);
+                    }
+                    image.hasInitialThreadState = true;
                     break;
                 }
                 state += static_cast<std::size_t>(stateBytes);
