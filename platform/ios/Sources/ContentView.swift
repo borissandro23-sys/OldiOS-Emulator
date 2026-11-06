@@ -64,7 +64,7 @@ struct ContentView: View {
                     .padding(12)
                     .background(.secondary.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
 
-                Text("Сейчас приложение извлекает и анализирует Mach-O. Выполнение старого iOS-приложения пока не поддерживается.")
+                Text("Доступно ограниченное выполнение ARM-инструкций для диагностики. Полный запуск приложения через UIKit пока не поддерживается.")
                     .font(.footnote)
                     .multilineTextAlignment(.center)
                     .foregroundStyle(.orange)
