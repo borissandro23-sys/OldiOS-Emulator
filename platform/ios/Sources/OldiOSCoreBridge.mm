@@ -72,12 +72,12 @@
 
         std::string dependencies;
         for (const auto& dependency : image.dependencies) {
-            dependencies += "• " + dependency + "\\n";
+            dependencies += "• " + dependency + "\n";
         }
-        if (dependencies.empty()) dependencies = "Не указаны\\n";
+        if (dependencies.empty()) dependencies = "Не указаны\n";
 
         return [NSString stringWithFormat:
-            @"IPA успешно разобран\\nApp bundle: %s\\nExecutable: %s\\nРазмер Mach-O: %llu байт\\nCPU type: 0x%08X\\nCPU subtype: 0x%08X\\nСегменты: %lu\\nЗависимости (%lu):\\n%s\\nТочка входа: 0x%08X\\nНачальное состояние: загружено\\nLC_UNIXTHREAD: %@\\nРежим CPU: %@\\nPC: 0x%08X\\nSP: 0x%08X\\nCPSR: 0x%08X\\nПервая инструкция: 0x%08X\\nВыполнение кода: НЕ ЗАПУСКАЛОСЬ",
+            @"IPA успешно разобран\nApp bundle: %s\nExecutable: %s\nРазмер Mach-O: %llu байт\nCPU type: 0x%08X\nCPU subtype: 0x%08X\nСегменты: %lu\nЗависимости (%lu):\n%s\nТочка входа: 0x%08X\nНачальное состояние: загружено\nLC_UNIXTHREAD: %@\nРежим CPU: %@\nPC: 0x%08X\nSP: 0x%08X\nCPSR: 0x%08X\nПервая инструкция: 0x%08X\nВыполнение кода: НЕ ЗАПУСКАЛОСЬ",
             ipa.appBundlePath.c_str(),
             ipa.executableName.c_str(),
             static_cast<unsigned long long>(ipa.executableSize),
