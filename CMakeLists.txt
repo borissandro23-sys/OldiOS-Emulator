@@ -10,6 +10,7 @@ if (WIN32)
         src/main.cpp
         src/armv6.cpp
         src/ipa_loader.cpp
+        src/macho_loader.cpp
         third_party/miniz.c
         third_party/miniz_tdef.c
         third_party/miniz_tinfl.c
@@ -20,6 +21,7 @@ else()
         src/main.cpp
         src/armv6.cpp
         src/ipa_loader.cpp
+        src/macho_loader.cpp
         third_party/miniz.c
         third_party/miniz_tdef.c
         third_party/miniz_tinfl.c
