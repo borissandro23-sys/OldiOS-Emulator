@@ -2,7 +2,7 @@
 #define UNICODE
 #define _UNICODE
 #include <windows.h>
-#include <string>
+#include <windowsx.h>
 
 namespace {
 constexpr int SCREEN_WIDTH = 320;
