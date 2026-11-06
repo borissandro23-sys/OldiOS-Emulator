@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(OldiOS_Emulator LANGUAGES CXX)
+project(OldiOS_Emulator LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -10,7 +10,7 @@ if (WIN32)
         src/main.cpp
         src/armv6.cpp
         src/ipa_loader.cpp
-        third_party/miniz.cpp
+        third_party/miniz.c
     )
     target_link_libraries(oldios-emu PRIVATE user32 gdi32 comdlg32)
 else()
@@ -18,7 +18,7 @@ else()
         src/main.cpp
         src/armv6.cpp
         src/ipa_loader.cpp
-        third_party/miniz.cpp
+        third_party/miniz.c
     )
 endif()
 
