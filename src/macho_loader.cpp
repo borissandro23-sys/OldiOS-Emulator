@@ -5,6 +5,13 @@
 namespace {
 constexpr std::uint32_t MH_MAGIC = 0xfeedfaceu, MH_CIGAM = 0xcefaedfeu;
 constexpr std::uint32_t LC_SEGMENT = 0x1u, LC_UNIXTHREAD = 0x5u;
+constexpr std::uint32_t LC_LOAD_DYLIB = 0xCu;
+constexpr std::uint32_t LC_LOAD_WEAK_DYLIB = 0x80000018u;
+constexpr std::uint32_t LC_REEXPORT_DYLIB = 0x8000001Fu;
+constexpr std::uint32_t LC_LOAD_UPWARD_DYLIB = 0x80000023u;
+constexpr std::uint32_t LC_LAZY_LOAD_DYLIB = 0x20u;
+constexpr std::uint32_t LC_DYLD_INFO = 0x22u;
+constexpr std::uint32_t LC_DYLD_INFO_ONLY = 0x80000022u;
 constexpr std::uint64_t MAX_FILE_SIZE = 256ull * 1024 * 1024;
 constexpr std::uint64_t MAX_MAPPED_SIZE = 256ull * 1024 * 1024;
 
@@ -61,6 +68,33 @@ bool loadMachOImage(const std::filesystem::path& path, MachOImage& image, std::s
         const auto cmdsize = read32(bytes, pos + 4, be);
         if (cmdsize < 8 || cmdsize > commandEnd - pos) {
             error = "A Mach-O load command has an invalid size."; return false;
+        }
+
+        if (cmd == LC_LOAD_DYLIB || cmd == LC_LOAD_WEAK_DYLIB ||
+            cmd == LC_REEXPORT_DYLIB || cmd == LC_LOAD_UPWARD_DYLIB ||
+            cmd == LC_LAZY_LOAD_DYLIB) {
+            if (cmdsize < 24) {
+                error = "A dylib load command is too small.";
+                return false;
+            }
+            const std::uint32_t nameOffset = read32(bytes, pos + 8, be);
+            if (nameOffset < 24 || nameOffset >= cmdsize) {
+                error = "A dylib load command has an invalid name offset.";
+                return false;
+            }
+            const std::size_t nameStart = pos + nameOffset;
+            const std::size_t nameLimit = pos + cmdsize;
+            std::size_t nameEnd = nameStart;
+            while (nameEnd < nameLimit && bytes[nameEnd] != 0) ++nameEnd;
+            if (nameEnd == nameStart || nameEnd == nameLimit) {
+                error = "A dylib load command has an empty or unterminated install name.";
+                return false;
+            }
+            image.dependencies.emplace_back(
+                reinterpret_cast<const char*>(bytes.data() + nameStart),
+                nameEnd - nameStart);
+        } else if (cmd == LC_DYLD_INFO || cmd == LC_DYLD_INFO_ONLY) {
+            image.hasDyldInfo = true;
         }
 
         if (cmd == LC_SEGMENT) {
