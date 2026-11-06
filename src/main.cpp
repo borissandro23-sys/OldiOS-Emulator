@@ -91,12 +91,31 @@ void showArmDebugger(HWND window, Armv6& cpu) {
             L"OldiOS — ARMv6 Step Debugger",
             MB_YESNOCANCEL | MB_ICONINFORMATION);
         if (answer != IDYES) return;
+        const std::uint32_t faultPc = cpu.reg(15);
+        std::uint32_t faultInstruction = 0;
+        try {
+            faultInstruction = cpu.peek32(faultPc);
+        } catch (const std::exception&) {
+            // Preserve the PC even if the next instruction is not mapped.
+        }
         try {
             cpu.step();
         } catch (const std::exception& error) {
-            const std::wstring fault = L"Execution stopped safely.\n\n" +
-                utf8ToWide(error.what()) + L"\n\nThe iOS app has not been fully executed.";
-            MessageBoxW(window, fault.c_str(), L"ARMv6 exception", MB_OK | MB_ICONWARNING);
+            std::wostringstream fault;
+            fault << L"Execution stopped safely.\n\n"
+                  << utf8ToWide(error.what())
+                  << L"\n\nFaulting PC: 0x" << std::uppercase << std::hex
+                  << std::setw(8) << std::setfill(L'0') << faultPc
+                  << L"\nInstruction: 0x" << std::setw(8) << faultInstruction
+                  << L"\n\nRegister state before instruction:";
+            for (unsigned i = 0; i < 15; ++i) {
+                if (i % 3 == 0) fault << L"\n";
+                fault << L"R" << std::dec << i << L"=0x" << std::uppercase << std::hex
+                      << std::setw(8) << std::setfill(L'0') << cpu.reg(i) << L"  ";
+            }
+            fault << L"\n\nThe iOS app has not been fully executed.";
+            MessageBoxW(window, fault.str().c_str(), L"ARMv6 exception",
+                        MB_OK | MB_ICONWARNING);
             return;
         }
     }
