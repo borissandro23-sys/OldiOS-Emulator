@@ -187,6 +187,19 @@ void openIpa(HWND window) {
             L"\nMapped memory: " + std::to_wstring(image.totalMappedBytes) +
             L" bytes\nEntry point (decimal): " +
             (image.hasEntryPoint ? std::to_wstring(image.entryPoint) : L"not present") +
+            L"\nLinked dylibs: " + std::to_wstring(image.dependencies.size()) +
+            (image.hasDyldInfo ? L"\nDyld info: present (fixups not applied)" :
+                                 L"\nDyld info: not present") +
+            L"\n\nDependencies:" +
+            [&]() {
+                std::wstring list;
+                const std::size_t limit = std::min<std::size_t>(image.dependencies.size(), 12);
+                for (std::size_t i = 0; i < limit; ++i)
+                    list += L"\n- " + utf8ToWide(image.dependencies[i]);
+                if (image.dependencies.size() > limit) list += L"\n... and more";
+                if (image.dependencies.empty()) list += L"\n(none declared)";
+                return list;
+            }() +
             L"\n\nApp bundle:\n" +
             utf8ToWide(info.appBundlePath) +
             L"\n\nExecutable:\n" +
