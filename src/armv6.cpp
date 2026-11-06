@@ -185,9 +185,17 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
         return;
     }
 
-    // Data-processing instructions. This first version supports immediate
-    // operands and unshifted register operands.
-    if ((ins & 0x0C000000u) == 0) {
+    // Data-processing class excludes multiply, miscellaneous, and test encodings.
+    // Bits 27:26 must be 00, and the register-shift encoding (bit 4) is
+    // not accepted here until its dedicated decoder is reached.
+    const bool dataProcessingClass = (ins & 0x0C000000u) == 0;
+    const bool multiplyEncoding = (ins & 0x0FC000F0u) == 0x00000090u;
+    const bool bxEncoding = (ins & 0x0FFFFFF0u) == 0x012FFF10u;
+    const bool swapEncoding = (ins & 0x0FB00FF0u) == 0x01000090u;
+    const bool halfwordEncoding = (ins & 0x0E000090u) == 0x00000090u;
+    const bool registerShiftEncoding = (ins & 0x00000090u) == 0x00000010u;
+    if (dataProcessingClass && !multiplyEncoding && !bxEncoding &&
+        !swapEncoding && !halfwordEncoding && !registerShiftEncoding) {
         const bool immediate = (ins & (1u << 25)) != 0;
         const bool setFlags = (ins & (1u << 20)) != 0;
         const unsigned opcode = (ins >> 21) & 0xF;
@@ -226,9 +234,43 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
             overflow = (((left ^ operand2) & (left ^ result)) >> 31) != 0;
             if (opcode == 0xA) writesResult = false;
             break;
+        case 0x3: // RSB
+            result = operand2 - left;
+            arithmetic = true;
+            carry = operand2 >= left;
+            overflow = (((operand2 ^ left) & (operand2 ^ result)) >> 31) != 0;
+            break;
         case 0x4: // ADD
             result = left + operand2;
             arithmetic = true;
+            carry = result < left;
+            overflow = ((~(left ^ operand2) & (left ^ result)) >> 31) != 0;
+            break;
+        case 0x5: { // ADC
+            const std::uint64_t wide = static_cast<std::uint64_t>(left) + operand2 + (carry ? 1u : 0u);
+            result = static_cast<std::uint32_t>(wide);
+            arithmetic = true; carry = (wide >> 32) != 0;
+            overflow = ((~(left ^ operand2) & (left ^ result)) >> 31) != 0;
+            break;
+        }
+        case 0x6: { // SBC
+            const std::uint64_t subtrahend = static_cast<std::uint64_t>(operand2) + (carry ? 0u : 1u);
+            result = left - static_cast<std::uint32_t>(subtrahend);
+            arithmetic = true; carry = static_cast<std::uint64_t>(left) >= subtrahend;
+            overflow = (((left ^ operand2) & (left ^ result)) >> 31) != 0;
+            break;
+        }
+        case 0x7: { // RSC
+            const std::uint64_t subtrahend = static_cast<std::uint64_t>(left) + (carry ? 0u : 1u);
+            result = operand2 - static_cast<std::uint32_t>(subtrahend);
+            arithmetic = true; carry = static_cast<std::uint64_t>(operand2) >= subtrahend;
+            overflow = (((operand2 ^ left) & (operand2 ^ result)) >> 31) != 0;
+            break;
+        }
+        case 0x8: result = left & operand2; writesResult = false; break; // TST
+        case 0x9: result = left ^ operand2; writesResult = false; break; // TEQ
+        case 0xB: // CMN
+            result = left + operand2; writesResult = false; arithmetic = true;
             carry = result < left;
             overflow = ((~(left ^ operand2) & (left ^ result)) >> 31) != 0;
             break;
