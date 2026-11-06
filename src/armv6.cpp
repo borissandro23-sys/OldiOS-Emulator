@@ -31,6 +31,7 @@ void Armv6::reset() {
     regs_.fill(0);
     cpsr_ = 0;
     halted_ = false;
+    trace_.clear();
 }
 
 void Armv6::loadProgram(const std::vector<std::uint32_t>& words,
@@ -120,6 +121,10 @@ std::uint32_t Armv6::cpsr() const {
 
 bool Armv6::halted() const {
     return halted_;
+}
+
+const std::vector<ArmTraceEntry>& Armv6::recentTrace() const {
+    return trace_;
 }
 
 std::uint32_t Armv6::read32(std::uint32_t address) const {
@@ -442,8 +447,25 @@ void Armv6::step() {
     if (halted_) return;
     const std::uint32_t address = regs_[15];
     const std::uint32_t instruction = read32(address);
+
+    ArmTraceEntry entry;
+    entry.pc = address;
+    entry.instruction = instruction;
+    entry.before = regs_;
+    trace_.push_back(entry);
+    constexpr std::size_t TRACE_LIMIT = 12;
+    if (trace_.size() > TRACE_LIMIT) trace_.erase(trace_.begin());
+
     regs_[15] = address + 4;
-    execute(instruction, address);
+    try {
+        execute(instruction, address);
+        trace_.back().after = regs_;
+        trace_.back().completed = true;
+    } catch (...) {
+        trace_.back().after = regs_;
+        trace_.back().completed = false;
+        throw;
+    }
 }
 
 void Armv6::run(std::size_t instructionLimit) {
