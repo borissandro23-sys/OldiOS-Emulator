@@ -66,21 +66,21 @@ void roundedBox(HDC dc, int left, int top, int right, int bottom,
 
 std::wstring armStateText(const Armv6& cpu) {
     std::wostringstream out;
-    out << L"ARMv6 debugger\\nPC: 0x" << std::uppercase << std::hex
+    out << L"ARMv6 debugger\nPC: 0x" << std::uppercase << std::hex
         << std::setw(8) << std::setfill(L'0') << cpu.reg(15)
-        << L"\\nCPSR: 0x" << std::setw(8) << cpu.cpsr();
+        << L"\nCPSR: 0x" << std::setw(8) << cpu.cpsr();
     for (unsigned i = 0; i < 16; ++i) {
-        if (i % 2 == 0) out << L"\\n";
+        if (i % 2 == 0) out << L"\n";
         out << L"R" << std::dec << i << L"=0x" << std::uppercase << std::hex
             << std::setw(8) << std::setfill(L'0') << cpu.reg(i) << L"   ";
     }
     try {
-        out << L"\\n\\nInstruction @ PC: 0x" << std::setw(8)
+        out << L"\n\nInstruction @ PC: 0x" << std::setw(8)
             << cpu.peek32(cpu.reg(15));
     } catch (const std::exception&) {
-        out << L"\\n\\nInstruction: address is not mapped";
+        out << L"\n\nInstruction: address is not mapped";
     }
-    out << L"\\n\\nYES = execute one instruction\\nNO = stop debugging\\nCANCEL = close debugger";
+    out << L"\n\nYES = execute one instruction\nNO = stop debugging\nCANCEL = close debugger";
     return out.str();
 }
 
@@ -94,8 +94,8 @@ void showArmDebugger(HWND window, Armv6& cpu) {
         try {
             cpu.step();
         } catch (const std::exception& error) {
-            const std::wstring fault = L"Execution stopped safely.\\n\\n" +
-                utf8ToWide(error.what()) + L"\\n\\nThe iOS app has not been fully executed.";
+            const std::wstring fault = L"Execution stopped safely.\n\n" +
+                utf8ToWide(error.what()) + L"\n\nThe iOS app has not been fully executed.";
             MessageBoxW(window, fault.c_str(), L"ARMv6 exception", MB_OK | MB_ICONWARNING);
             return;
         }
