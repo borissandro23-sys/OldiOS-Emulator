@@ -20,6 +20,12 @@ constexpr std::uint32_t LC_DYLD_INFO_ONLY = 0x80000022u;
 constexpr std::uint64_t MAX_FILE_SIZE = 256ull * 1024 * 1024;
 constexpr std::uint64_t MAX_MAPPED_SIZE = 256ull * 1024 * 1024;
 
+std::uint16_t read16(const std::vector<std::uint8_t>& b, std::size_t p, bool be) {
+    if (p > b.size() || b.size() - p < 2) return 0;
+    if (be) return (std::uint16_t(b[p]) << 8) | std::uint16_t(b[p + 1]);
+    return std::uint16_t(b[p]) | (std::uint16_t(b[p + 1]) << 8);
+}
+
 std::uint32_t read32(const std::vector<std::uint8_t>& b, std::size_t p, bool be) {
     if (p > b.size() || b.size() - p < 4) return 0;
     if (be) return (std::uint32_t(b[p]) << 24) | (std::uint32_t(b[p+1]) << 16) |
@@ -243,9 +249,7 @@ bool loadMachOImage(const std::filesystem::path& path, MachOImage& image, std::s
             MachOSymbol symbol;
             symbol.type = bytes[symbolPos + 4u];
             symbol.section = bytes[symbolPos + 5u];
-            symbol.description = static_cast<std::uint16_t>(
-                std::uint16_t(bytes[symbolPos + 6u]) |
-                (std::uint16_t(bytes[symbolPos + 7u]) << 8));
+            symbol.description = read16(bytes, symbolPos + 6u, be);
             symbol.value = read32(bytes, symbolPos + 8u, be);
             if (stringIndex < st.stringSize) {
                 const std::size_t stringStart = std::size_t(st.stringOffset) + stringIndex;
