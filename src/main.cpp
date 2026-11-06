@@ -6,6 +6,7 @@
 #include <commdlg.h>
 
 #include "ipa_loader.hpp"
+#include "macho_loader.hpp"
 
 #include <filesystem>
 #include <string>
@@ -75,8 +76,26 @@ void openIpa(HWND window) {
     IpaInfo info;
     if (loadIpaExecutable(std::filesystem::path(fileName), info)) {
         ipaStatus = L"IPA: Mach-O загружен";
+        MachOImage image;
+        std::string machoError;
+        if (!loadMachOImage(info.executablePath, image, machoError)) {
+            ipaStatus = L"IPA: ошибка загрузки сегментов Mach-O";
+            MessageBoxW(window, utf8ToWide(machoError).c_str(),
+                        L"Mach-O Loader", MB_OK | MB_ICONWARNING);
+            InvalidateRect(window, nullptr, TRUE);
+            return;
+        }
         const std::wstring details =
-            L"Mach-O executable extracted and validated.\n\nApp bundle:\n" +
+            L"Mach-O executable extracted and validated.\n"
+            L"Mapped segments: " + std::to_wstring(image.segments.size()) +
+            L"\nMapped memory: " + std::to_wstring(image.totalMappedBytes) +
+            L" bytes\nEntry point: " +
+            (image.hasEntryPoint ? L"0x" + [&]() {
+                wchar_t value[16]{};
+                swprintf_s(value, L"%08X", image.entryPoint);
+                return std::wstring(value);
+            }() : L"not present") +
+            L"\n\nApp bundle:\n" +
             utf8ToWide(info.appBundlePath) +
             L"\n\nExecutable:\n" +
             utf8ToWide(info.executableName) +
