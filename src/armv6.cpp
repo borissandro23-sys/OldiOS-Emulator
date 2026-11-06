@@ -94,6 +94,10 @@ void Armv6::loadImage(const MachOImage& image) {
     if (!entryMapped || (image.entryPoint & 3u))
         throw std::runtime_error("Mach-O entry point is not a mapped, aligned ARM instruction.");
 
+    imageSections_ = image.sections;
+    imageSymbols_ = image.symbols;
+    indirectSymbols_ = image.dynamicSymbolTable.indirectSymbols;
+
     memoryBase_ = static_cast<std::uint32_t>(low);
     memory_.assign(static_cast<std::size_t>(high - low + STACK_SIZE), 0);
     for (const auto& segment : image.segments) {
@@ -356,9 +360,49 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
                             << ", loaded value=0x" << std::setw(8) << value
                             << ", aligned target=0x" << std::setw(8) << target
                             << ", mapped range=[0x" << std::setw(8) << mappedBegin
-                            << ", 0x" << std::setw(9) << mappedEnd << "). "
-                            << "This is a control-flow target outside the loaded Mach-O image; "
-                            << "it may require dyld binding or another image to be loaded.";
+                            << ", 0x" << std::setw(9) << mappedEnd << ").";
+
+                    bool foundPointerSection = false;
+                    for (const auto& section : imageSections_) {
+                        const std::uint64_t sectionEnd =
+                            std::uint64_t(section.address) + section.size;
+                        if (effective < section.address || effective + 4u > sectionEnd)
+                            continue;
+                        foundPointerSection = true;
+                        const std::uint32_t sectionType = section.flags & 0xFFu;
+                        message << " Section=" << section.segmentName << "."
+                                << section.sectionName
+                                << " (type=0x" << sectionType << ").";
+                        if (sectionType == 0x6u || sectionType == 0x7u) {
+                            const std::uint64_t slot = (effective - section.address) / 4u;
+                            const std::uint64_t indirectIndex =
+                                std::uint64_t(section.reserved1) + slot;
+                            message << " Pointer slot index=" << std::dec << slot
+                                    << ", indirect-symbol index=" << indirectIndex << ".";
+                            if (indirectIndex < indirectSymbols_.size()) {
+                                const std::uint32_t symbolIndex =
+                                    indirectSymbols_[static_cast<std::size_t>(indirectIndex)];
+                                message << " Indirect entry=0x" << std::hex << symbolIndex << ".";
+                                if ((symbolIndex & 0xC0000000u) == 0) {
+                                    if (symbolIndex < imageSymbols_.size()) {
+                                        message << " Imported symbol="
+                                                << imageSymbols_[symbolIndex].name << ".";
+                                    } else {
+                                        message << " Symbol index is outside the parsed symbol table.";
+                                    }
+                                } else {
+                                    message << " Indirect entry is a LOCAL/ABS marker.";
+                                }
+                            } else {
+                                message << " Indirect-symbol entry is unavailable.";
+                            }
+                        }
+                        break;
+                    }
+                    if (!foundPointerSection)
+                        message << " No Mach-O section contains the pointer slot.";
+                    message << " The target is outside the loaded image; dependent dylibs and "
+                            << "dyld binding are not implemented yet.";
                     throw std::runtime_error(message.str());
                 }
                 regs_[15] = target;
