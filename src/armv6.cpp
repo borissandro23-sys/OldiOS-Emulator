@@ -492,6 +492,85 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
                              std::to_string(address));
 }
 
+void Armv6::executeThumb(std::uint16_t ins, std::uint32_t address) {
+    const auto setNz = [&](std::uint32_t value) {
+        cpsr_ &= ~(FLAG_N | FLAG_Z);
+        if (value & 0x80000000u) cpsr_ |= FLAG_N;
+        if (value == 0) cpsr_ |= FLAG_Z;
+    };
+    const auto setAdd = [&](std::uint32_t a, std::uint32_t b, std::uint32_t value) {
+        setNz(value); cpsr_ &= ~(FLAG_C | FLAG_V);
+        if (std::uint64_t(a) + b > 0xFFFFFFFFull) cpsr_ |= FLAG_C;
+        if ((~(a ^ b) & (a ^ value)) & 0x80000000u) cpsr_ |= FLAG_V;
+    };
+    const auto setSub = [&](std::uint32_t a, std::uint32_t b, std::uint32_t value) {
+        setNz(value); cpsr_ &= ~(FLAG_C | FLAG_V);
+        if (a >= b) cpsr_ |= FLAG_C;
+        if (((a ^ b) & (a ^ value)) & 0x80000000u) cpsr_ |= FLAG_V;
+    };
+    if ((ins & 0xE000u) == 0x0000u) {
+        if ((ins & 0x1800u) == 0x1800u) {
+            const bool imm = (ins & 0x0400u) != 0, sub = (ins & 0x0200u) != 0;
+            const unsigned rn = (ins >> 3) & 7u, rd = ins & 7u;
+            const std::uint32_t a = regs_[rn], b = imm ? ((ins >> 6) & 7u) : regs_[(ins >> 6) & 7u];
+            const std::uint32_t v = sub ? a - b : a + b;
+            regs_[rd] = v; if (sub) setSub(a,b,v); else setAdd(a,b,v); return;
+        }
+        const unsigned type = (ins >> 11) & 3u, amount = (ins >> 6) & 31u;
+        const unsigned rm = (ins >> 3) & 7u, rd = ins & 7u;
+        const std::uint32_t value = regs_[rm]; std::uint32_t result = value;
+        bool carry = (cpsr_ & FLAG_C) != 0;
+        if (type == 0) { if (amount) { carry = ((value >> (32-amount)) & 1u) != 0; result = value << amount; } }
+        else if (type == 1) { const unsigned n=amount?amount:32; carry=((value>>(n-1))&1u)!=0; result=n==32?0:value>>n; }
+        else if (type == 2) { const unsigned n=amount?amount:32; carry=((value>>(n-1))&1u)!=0; result=static_cast<std::uint32_t>(static_cast<std::int32_t>(value)>>n); }
+        else throw std::runtime_error("Unsupported Thumb shift encoding.");
+        regs_[rd]=result; setNz(result); cpsr_=(cpsr_&~FLAG_C)|(carry?FLAG_C:0); return;
+    }
+    if ((ins & 0xE000u) == 0x2000u) {
+        const unsigned op=(ins>>11)&3u, rd=(ins>>8)&7u; const std::uint32_t imm=ins&255u, a=regs_[rd];
+        const std::uint32_t v=op==0?imm:(op==1||op==3)?a-imm:a+imm;
+        if(op!=1) regs_[rd]=v; if(op==1||op==3)setSub(a,imm,v); else if(op==2)setAdd(a,imm,v); else setNz(v); return;
+    }
+    if ((ins & 0xF800u) == 0x4800u) {
+        const unsigned rd=(ins>>8)&7u; regs_[rd]=read32(((address+4)&~3u)+((ins&255u)<<2)); return;
+    }
+    if ((ins & 0xF000u) == 0xA000u) {
+        const unsigned rd=(ins>>8)&7u; const std::uint32_t base=(ins&0x0800u)?regs_[13]:((address+4)&~3u);
+        regs_[rd]=base+((ins&255u)<<2); return;
+    }
+    if ((ins & 0xF600u) == 0xB400u) {
+        const bool pop=(ins&0x0800u)!=0, extra=(ins&0x0100u)!=0; std::uint32_t sp=regs_[13];
+        if(!pop) { for(int r=7;r>=0;--r) if(ins&(1u<<r)){sp-=4;write32(sp,regs_[r]);} if(extra){sp-=4;write32(sp,regs_[14]);} }
+        else { for(unsigned r=0;r<8;++r) if(ins&(1u<<r)){regs_[r]=read32(sp);sp+=4;} if(extra){const auto target=read32(sp);sp+=4;if(target&1u){cpsr_|=FLAG_T;regs_[15]=target&~1u;}else{cpsr_&=~FLAG_T;regs_[15]=target&~3u;}} }
+        regs_[13]=sp; return;
+    }
+    if ((ins & 0xFF00u) == 0xB000u) { const std::uint32_t n=(ins&0x7Fu)<<2; regs_[13]=(ins&0x80u)?regs_[13]-n:regs_[13]+n; return; }
+    if ((ins & 0xE000u) == 0x6000u) {
+        const bool byte=(ins&0x1000u)!=0, load=(ins&0x0800u)!=0; const unsigned imm=(ins>>6)&31u, rb=(ins>>3)&7u, rd=ins&7u;
+        const std::uint32_t ea=regs_[rb]+(byte?imm:imm*4u);
+        if(load) regs_[rd]=byte?read8(ea):read32(ea); else if(byte)write8(ea,static_cast<std::uint8_t>(regs_[rd])); else write32(ea,regs_[rd]); return;
+    }
+    if ((ins & 0xF000u) == 0x9000u) {
+        const bool load=(ins&0x0800u)!=0; const unsigned rd=(ins>>8)&7u; const std::uint32_t ea=regs_[13]+((ins&255u)<<2);
+        if(load)regs_[rd]=read32(ea);else write32(ea,regs_[rd]);return;
+    }
+    if ((ins & 0xFC00u) == 0x4400u) {
+        const unsigned op=(ins>>8)&3u, rd=(ins&7u)|((ins>>4)&8u), rs=(ins>>3)&15u;
+        const std::uint32_t a=rd==15?address+4:regs_[rd], b=rs==15?address+4:regs_[rs];
+        if(op==3){if(ins&0x80u)regs_[14]=(address+2)|1u;if(b&1u){cpsr_|=FLAG_T;regs_[15]=b&~1u;}else{cpsr_&=~FLAG_T;regs_[15]=b&~3u;}}
+        else if(op==0){if(rd==15)regs_[15]=a+b;else regs_[rd]=a+b;}
+        else if(op==1)setSub(a,b,a-b);else{if(rd==15)regs_[15]=b&~1u;else regs_[rd]=b;} return;
+    }
+    if ((ins & 0xF000u) == 0xD000u) {
+        const unsigned cond=(ins>>8)&15u; if(cond>=14)throw std::runtime_error("Unsupported Thumb conditional branch.");
+        if(conditionPassed(cond)){const std::int32_t off=static_cast<std::int8_t>(ins&255u)*2;regs_[15]=static_cast<std::uint32_t>(static_cast<std::int64_t>(address+4)+off);}return;
+    }
+    if ((ins & 0xF800u) == 0xE000u) {
+        std::int32_t off=ins&0x7FFu;if(off&0x400)off|=~0x7FF;regs_[15]=static_cast<std::uint32_t>(static_cast<std::int64_t>(address+4)+off*2);return;
+    }
+    throw std::runtime_error("Unsupported Thumb instruction at address "+std::to_string(address));
+}
+
 void Armv6::step() {
     if (halted_) return;
     const std::uint32_t address = regs_[15];
