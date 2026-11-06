@@ -6,9 +6,12 @@ on:
     paths:
       - "platform/ios/**"
       - "src/armv6.cpp"
+      - "src/ipa_loader.cpp"
       - "src/macho_loader.cpp"
       - "include/armv6.hpp"
+      - "include/ipa_loader.hpp"
       - "include/macho_loader.hpp"
+      - "third_party/miniz*"
       - ".github/workflows/ios-host-ipa.yml"
 
 jobs:
