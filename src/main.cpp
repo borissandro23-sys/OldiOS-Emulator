@@ -113,6 +113,18 @@ void showArmDebugger(HWND window, Armv6& cpu) {
                 fault << L"R" << std::dec << i << L"=0x" << std::uppercase << std::hex
                       << std::setw(8) << std::setfill(L'0') << cpu.reg(i) << L"  ";
             }
+            fault << L"\n\nRecent ARM instructions (oldest first):";
+            const auto& trace = cpu.recentTrace();
+            const std::size_t first = trace.size() > 10 ? trace.size() - 10 : 0;
+            for (std::size_t i = first; i < trace.size(); ++i) {
+                const auto& item = trace[i];
+                fault << L"\nPC=0x" << std::uppercase << std::hex
+                      << std::setw(8) << std::setfill(L'0') << item.pc
+                      << L"  OP=0x" << std::setw(8) << item.instruction
+                      << L"  R3:0x" << std::setw(8) << item.before[3]
+                      << L"->0x" << std::setw(8) << item.after[3]
+                      << (item.completed ? L" OK" : L" FAULT");
+            }
             fault << L"\n\nThe iOS app has not been fully executed.";
             MessageBoxW(window, fault.str().c_str(), L"ARMv6 exception",
                         MB_OK | MB_ICONWARNING);
