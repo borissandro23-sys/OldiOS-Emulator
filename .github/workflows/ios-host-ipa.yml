@@ -1,0 +1,42 @@
+name: Build iOS host IPA
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "platform/ios/**"
+      - ".github/workflows/ios-host-ipa.yml"
+
+jobs:
+  build-ipa:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate Xcode project
+        working-directory: platform/ios
+        run: xcodegen generate
+      - name: Build unsigned iOS app
+        working-directory: platform/ios
+        run: |
+          xcodebuild \
+            -project OldiOSHost.xcodeproj \
+            -scheme OldiOSHost \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Package IPA
+        run: |
+          APP_PATH="platform/ios/build/Build/Products/Release-iphoneos/OldiOS.app"
+          test -d "$APP_PATH"
+          mkdir -p dist/Payload
+          cp -R "$APP_PATH" dist/Payload/
+          cd dist
+          zip -qry OldiOSHost-scaffold.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OldiOSHost-scaffold-unsigned-IPA
+          path: dist/OldiOSHost-scaffold.ipa
+          if-no-files-found: error
