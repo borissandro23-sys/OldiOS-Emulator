@@ -9,12 +9,18 @@ settings:
     TARGETED_DEVICE_FAMILY: "1"
     IPHONEOS_DEPLOYMENT_TARGET: "15.0"
     CODE_SIGNING_ALLOWED: "NO"
+    CLANG_CXX_LANGUAGE_STANDARD: "c++17"
+    CLANG_CXX_LIBRARY: "libc++"
+    HEADER_SEARCH_PATHS: "$(SRCROOT)/../../include"
+    SWIFT_OBJC_BRIDGING_HEADER: "Sources/OldiOSHost-Bridging-Header.h"
 targets:
   OldiOSHost:
     type: application
     platform: iOS
     sources:
       - path: Sources
+      - path: ../../src/armv6.cpp
+      - path: ../../src/macho_loader.cpp
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.oldios.host

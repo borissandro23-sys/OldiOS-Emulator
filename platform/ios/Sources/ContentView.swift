@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct ContentView: View {
+    @State private var coreStatus = "Проверяем C++-ядро…"
+
     var body: some View {
         VStack(spacing: 14) {
             Image(systemName: "iphone")
@@ -9,14 +11,22 @@ struct ContentView: View {
                 .font(.largeTitle.bold())
             Text("ARMv6 compatibility runtime")
                 .font(.headline)
-            Text("The iOS host shell is ready for integration. The emulator core and UIKit compatibility layer are not connected yet.")
+            Text("C++ core")
+                .font(.subheadline.bold())
+            Text(coreStatus)
+                .font(.footnote.monospaced())
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal)
-            Text("Prototype — no legacy apps can be launched yet.")
+            Text("Проверка ядра не означает, что запуск старых iOS-приложений уже поддерживается.")
                 .font(.footnote)
+                .multilineTextAlignment(.center)
                 .foregroundStyle(.orange)
+                .padding(.horizontal)
         }
         .padding()
+        .onAppear {
+            coreStatus = OldiOSCoreBridge.runtimeStatus()
+        }
     }
 }
