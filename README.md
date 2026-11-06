@@ -46,7 +46,7 @@ Choose an IPA with Ctrl+O. The loader extracts the main executable to the operat
 
 ## Third-party code
 
-The ZIP deflate implementation is miniz 2.1.0, distributed under its permissive license included in `third_party/miniz.h` and `third_party/miniz.cpp`.
+The ZIP deflate implementation is miniz 2.1.0, distributed under its permissive license included in `third_party/miniz.h` and `third_party/miniz.c`.
 
 ## Roadmap
 
