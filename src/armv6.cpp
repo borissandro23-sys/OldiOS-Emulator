@@ -14,7 +14,10 @@ constexpr std::uint32_t FLAG_C = 1u << 29;
 constexpr std::uint32_t FLAG_V = 1u << 28;
 constexpr std::uint32_t FLAG_T = 1u << 5;
 constexpr std::uint64_t MAX_IMAGE_MEMORY = 256ull * 1024 * 1024;
-constexpr std::uint64_t STACK_SIZE = 64ull * 1024;
+// Reserve a full 1 MiB Darwin-style main-thread stack region. The previous
+// 64 KiB window ended at 0x18000 for the I Am Rich image, while its startup
+// sequence accesses the adjacent stack area at 0x18004.
+constexpr std::uint64_t STACK_SIZE = 1024ull * 1024;
 
 std::int32_t signExtend24(std::uint32_t value) {
     if ((value & 0x00800000u) != 0) {
