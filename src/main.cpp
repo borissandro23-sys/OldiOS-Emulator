@@ -142,7 +142,8 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
             openIpa(window);
             return 0;
         }
-        break;
+        // Forward all other key messages to the default window procedure.
+        return DefWindowProcW(window, message, wParam, lParam);
     case WM_PAINT: {
         PAINTSTRUCT paint{};
         HDC dc = BeginPaint(window, &paint);
