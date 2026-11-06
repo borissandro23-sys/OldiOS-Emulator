@@ -1,0 +1,25 @@
+name: OldiOSHost
+options:
+  bundleIdPrefix: com.oldios
+  deploymentTarget:
+    iOS: "15.0"
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    TARGETED_DEVICE_FAMILY: "1"
+    IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+    CODE_SIGNING_ALLOWED: "NO"
+targets:
+  OldiOSHost:
+    type: application
+    platform: iOS
+    sources:
+      - path: Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.oldios.host
+        PRODUCT_NAME: OldiOS
+        INFOPLIST_KEY_CFBundleDisplayName: OldiOS
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        INFOPLIST_KEY_UIUserInterfaceStyle: Automatic
+        GENERATE_INFOPLIST_FILE: YES
