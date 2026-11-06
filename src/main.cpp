@@ -64,6 +64,49 @@ void roundedBox(HDC dc, int left, int top, int right, int bottom,
     DeleteObject(pen);
 }
 
+std::wstring armStateText(const Armv6& cpu) {
+    std::wostringstream out;
+    out << L"ARMv6 debugger\\nPC: 0x" << std::uppercase << std::hex
+        << std::setw(8) << std::setfill(L'0') << cpu.reg(15)
+        << L"\\nCPSR: 0x" << std::setw(8) << cpu.cpsr();
+    for (unsigned i = 0; i < 16; ++i) {
+        if (i % 2 == 0) out << L"\\n";
+        out << L"R" << std::dec << i << L"=0x" << std::uppercase << std::hex
+            << std::setw(8) << std::setfill(L'0') << cpu.reg(i) << L"   ";
+    }
+    try {
+        out << L"\\n\\nInstruction @ PC: 0x" << std::setw(8)
+            << cpu.peek32(cpu.reg(15));
+    } catch (const std::exception&) {
+        out << L"\\n\\nInstruction: address is not mapped";
+    }
+    out << L"\\n\\nYES = execute one instruction\\nNO = stop debugging\\nCANCEL = close debugger";
+    return out.str();
+}
+
+void showArmDebugger(HWND window, Armv6& cpu) {
+    for (unsigned count = 0; count < 64 && !cpu.halted(); ++count) {
+        const std::wstring state = armStateText(cpu);
+        const int answer = MessageBoxW(window, state.c_str(),
+            L"OldiOS — ARMv6 Step Debugger",
+            MB_YESNOCANCEL | MB_ICONINFORMATION);
+        if (answer != IDYES) return;
+        try {
+            cpu.step();
+        } catch (const std::exception& error) {
+            const std::wstring fault = L"Execution stopped safely.\\n\\n" +
+                utf8ToWide(error.what()) + L"\\n\\nThe iOS app has not been fully executed.";
+            MessageBoxW(window, fault.c_str(), L"ARMv6 exception", MB_OK | MB_ICONWARNING);
+            return;
+        }
+    }
+    if (cpu.halted()) {
+        MessageBoxW(window, L"CPU reached its stop marker.", L"ARMv6 debugger", MB_OK);
+    } else {
+        MessageBoxW(window, L"Debugging paused after 64 instructions.", L"ARMv6 debugger", MB_OK);
+    }
+}
+
 void openIpa(HWND window) {
     wchar_t fileName[32768]{};
     OPENFILENAMEW dialog{};
@@ -126,6 +169,15 @@ void openIpa(HWND window) {
             cpuDetails +
             L"\n\nThe app has NOT been executed.";
         MessageBoxW(window, details.c_str(), L"Mach-O Loader", MB_OK | MB_ICONINFORMATION);
+        if (cpuDetails.find(L"ARM memory loaded") != std::wstring::npos) {
+            Armv6 debuggerCpu;
+            try {
+                debuggerCpu.loadImage(image);
+                showArmDebugger(window, debuggerCpu);
+            } catch (const std::exception& error) {
+                MessageBoxW(window, utf8ToWide(error.what()).c_str(), L"ARMv6 debugger", MB_OK | MB_ICONWARNING);
+            }
+        }
     } else {
         ipaStatus = L"IPA: ошибка загрузки Mach-O";
         const std::wstring details = utf8ToWide(info.error);
