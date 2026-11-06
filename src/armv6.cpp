@@ -11,6 +11,7 @@ constexpr std::uint32_t FLAG_Z = 1u << 30;
 constexpr std::uint32_t FLAG_C = 1u << 29;
 constexpr std::uint32_t FLAG_V = 1u << 28;
 constexpr std::uint64_t MAX_IMAGE_MEMORY = 256ull * 1024 * 1024;
+constexpr std::uint64_t STACK_SIZE = 64ull * 1024;
 
 std::int32_t signExtend24(std::uint32_t value) {
     if ((value & 0x00800000u) != 0) {
@@ -66,8 +67,8 @@ void Armv6::loadImage(const MachOImage& image) {
         low = std::min(low, begin);
         high = std::max(high, end);
     }
-    if (high - low > MAX_IMAGE_MEMORY)
-        throw std::runtime_error("Mach-O virtual address span exceeds 256 MiB.");
+    if (high - low > MAX_IMAGE_MEMORY || high + STACK_SIZE > 0x100000000ull)
+        throw std::runtime_error("Mach-O image and stack exceed the supported memory range.");
 
     for (std::size_t i = 0; i < image.segments.size(); ++i) {
         const std::uint64_t a0 = image.segments[i].vmAddress;
@@ -90,12 +91,13 @@ void Armv6::loadImage(const MachOImage& image) {
         throw std::runtime_error("Mach-O entry point is not a mapped, aligned ARM instruction.");
 
     memoryBase_ = static_cast<std::uint32_t>(low);
-    memory_.assign(static_cast<std::size_t>(high - low), 0);
+    memory_.assign(static_cast<std::size_t>(high - low + STACK_SIZE), 0);
     for (const auto& segment : image.segments) {
         const auto offset = static_cast<std::size_t>(std::uint64_t(segment.vmAddress) - low);
         std::copy(segment.memory.begin(), segment.memory.end(), memory_.begin() + offset);
     }
     reset();
+    regs_[13] = static_cast<std::uint32_t>(low + memory_.size() - 4);
     regs_[15] = image.entryPoint;
 }
 
@@ -317,17 +319,21 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
                              std::to_string(address));
 }
 
+void Armv6::step() {
+    if (halted_) return;
+    const std::uint32_t address = regs_[15];
+    const std::uint32_t instruction = read32(address);
+    regs_[15] = address + 4;
+    execute(instruction, address);
+}
+
 void Armv6::run(std::size_t instructionLimit) {
     std::size_t executed = 0;
     while (!halted_ && executed < instructionLimit) {
-        const std::uint32_t address = regs_[15];
-        const std::uint32_t instruction = read32(address);
-        regs_[15] = address + 4;
-        execute(instruction, address);
+        step();
         ++executed;
     }
-
-    if (executed == instructionLimit) {
+    if (executed == instructionLimit && !halted_) {
         std::cout << "Instruction limit reached; stopping safely.\n";
     }
 }
