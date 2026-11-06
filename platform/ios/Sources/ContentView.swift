@@ -7,6 +7,7 @@ struct ContentView: View {
     @State private var ipaStatus = "IPA ещё не выбран."
     @State private var isImporterPresented = false
     @State private var isInspecting = false
+    @State private var selectedIPAPath: String?
 
     var body: some View {
         ScrollView {
@@ -44,6 +45,18 @@ struct ContentView: View {
                     ProgressView("Анализируем IPA…")
                 }
 
+                Button {
+                    guard let path = selectedIPAPath else { return }
+                    isInspecting = true
+                    ipaStatus = OldiOSCoreBridge.traceIPA(atPath: path, instructionLimit: 100)
+                    isInspecting = false
+                } label: {
+                    Label("Выполнить первые 100 инструкций", systemImage: "cpu")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .disabled(isInspecting || selectedIPAPath == nil)
+
                 Text(ipaStatus)
                     .font(.footnote.monospaced())
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -66,6 +79,7 @@ struct ContentView: View {
                         ipaStatus = "Выбран не IPA-файл. Выбери файл с расширением .ipa."
                         return
                     }
+                    selectedIPAPath = url.path
                     isInspecting = true
                     ipaStatus = OldiOSCoreBridge.inspectIPA(atPath: url.path)
                     isInspecting = false
