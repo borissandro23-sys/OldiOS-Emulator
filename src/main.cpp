@@ -28,7 +28,8 @@ int main() {
             0xE3A02000u,
             0xE5943000u,
             0xE2433002u,
-            0xE353000Au
+            0xE353000Au,
+            0xFFFFFFFFu // demo stop marker (not an ARM instruction)
         };
 
         cpu.loadProgram(program);
