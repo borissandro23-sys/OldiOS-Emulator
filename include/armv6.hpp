@@ -42,6 +42,8 @@ private:
     bool halted_ = false;
     std::vector<ArmTraceEntry> trace_;
 
+    std::uint32_t read16(std::uint32_t address) const;
+    void write16(std::uint32_t address, std::uint16_t value);
     std::uint32_t read32(std::uint32_t address) const;
     void write32(std::uint32_t address, std::uint32_t value);
     std::uint32_t read8(std::uint32_t address) const;
@@ -50,4 +52,5 @@ private:
     bool conditionPassed(std::uint32_t condition) const;
     void setNz(std::uint32_t value);
     void execute(std::uint32_t instruction, std::uint32_t instructionAddress);
+    void executeThumb(std::uint16_t instruction, std::uint32_t instructionAddress);
 };
