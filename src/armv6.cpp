@@ -130,6 +130,11 @@ void Armv6::setNz(std::uint32_t value) {
 }
 
 void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
+    // Prototype-only stop marker used by the built-in demo.
+    if (ins == 0xFFFFFFFFu) {
+        halted_ = true;
+        return;
+    }
     const std::uint32_t condition = ins >> 28;
     if (!conditionPassed(condition)) {
         return;
