@@ -117,7 +117,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
 }
 } // namespace
 
-int WINAPI wWinMain(HINSTANCE instance, HINSTANCE, PWSTR, int showCommand) {
+int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int showCommand) {
     const wchar_t CLASS_NAME[] = L"OldiOSEmulatorWindow";
     WNDCLASSW wc{};
     wc.lpfnWndProc = windowProc;
