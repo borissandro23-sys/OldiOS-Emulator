@@ -33,6 +33,7 @@ struct MachODynamicSymbolTable {
     bool present = false;
     std::uint32_t undefinedSymbolIndex = 0, undefinedSymbolCount = 0;
     std::uint32_t indirectSymbolOffset = 0, indirectSymbolCount = 0;
+    std::vector<std::uint32_t> indirectSymbols;
 };
 
 struct MachOImage {
