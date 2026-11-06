@@ -173,6 +173,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     default:
         return DefWindowProcW(window, message, wParam, lParam);
     }
+    return DefWindowProcW(window, message, wParam, lParam);
 }
 } // namespace
 
