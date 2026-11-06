@@ -8,6 +8,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 add_executable(oldios-emu
     src/main.cpp
     src/armv6.cpp
+    src/display_window.cpp
 )
 
 target_include_directories(oldios-emu PRIVATE include)
