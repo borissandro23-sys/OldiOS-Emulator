@@ -18,6 +18,7 @@ public:
                      std::uint32_t address = 0);
     void loadImage(const MachOImage& image);
     std::uint32_t peek32(std::uint32_t address) const;
+    void step();
     void run(std::size_t instructionLimit);
 
     std::uint32_t reg(std::size_t index) const;
