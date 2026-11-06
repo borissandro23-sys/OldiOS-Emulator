@@ -11,6 +11,8 @@ if (WIN32)
         src/armv6.cpp
         src/ipa_loader.cpp
         third_party/miniz.c
+        third_party/miniz_tdef.c
+        third_party/miniz_tinfl.c
     )
     target_link_libraries(oldios-emu PRIVATE user32 gdi32 comdlg32)
 else()
