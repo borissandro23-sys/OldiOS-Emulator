@@ -4,7 +4,10 @@
 #include "ipa_loader.hpp"
 #include "macho_loader.hpp"
 
+#include <algorithm>
 #include <exception>
+#include <iomanip>
+#include <sstream>
 #include <filesystem>
 #include <string>
 #include <vector>
