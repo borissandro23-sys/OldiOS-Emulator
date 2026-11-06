@@ -82,7 +82,7 @@ int DisplayWindow::run() {
     wc.lpfnWndProc = displayProc;
     wc.hInstance = instance;
     wc.lpszClassName = className;
-    wc.hCursor = LoadCursorW(nullptr, IDC_ARROW);
+    wc.hCursor = LoadCursorW(nullptr, MAKEINTRESOURCEW(32512));
     wc.hbrBackground = reinterpret_cast<HBRUSH>(GetStockObject(BLACK_BRUSH));
     if (!RegisterClassW(&wc) && GetLastError() != ERROR_CLASS_ALREADY_EXISTS) {
         throw std::runtime_error("Could not register display window class.");
