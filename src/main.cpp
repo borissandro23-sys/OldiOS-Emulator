@@ -89,12 +89,8 @@ void openIpa(HWND window) {
             L"Mach-O executable extracted and validated.\n"
             L"Mapped segments: " + std::to_wstring(image.segments.size()) +
             L"\nMapped memory: " + std::to_wstring(image.totalMappedBytes) +
-            L" bytes\nEntry point: " +
-            (image.hasEntryPoint ? L"0x" + [&]() {
-                wchar_t value[16]{};
-                swprintf_s(value, L"%08X", image.entryPoint);
-                return std::wstring(value);
-            }() : L"not present") +
+            L" bytes\nEntry point (decimal): " +
+            (image.hasEntryPoint ? std::to_wstring(image.entryPoint) : L"not present") +
             L"\n\nApp bundle:\n" +
             utf8ToWide(info.appBundlePath) +
             L"\n\nExecutable:\n" +
