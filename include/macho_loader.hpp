@@ -10,6 +10,31 @@ struct MachOSegment {
     std::vector<std::uint8_t> memory;
 };
 
+struct MachOSection {
+    std::string segmentName, sectionName;
+    std::uint32_t address = 0, size = 0, fileOffset = 0, flags = 0;
+    std::uint32_t reserved1 = 0, reserved2 = 0;
+};
+
+struct MachOSymbol {
+    std::string name;
+    std::uint8_t type = 0, section = 0;
+    std::uint16_t description = 0;
+    std::uint32_t value = 0;
+};
+
+struct MachOSymbolTable {
+    bool present = false;
+    std::uint32_t symbolOffset = 0, symbolCount = 0;
+    std::uint32_t stringOffset = 0, stringSize = 0;
+};
+
+struct MachODynamicSymbolTable {
+    bool present = false;
+    std::uint32_t undefinedSymbolIndex = 0, undefinedSymbolCount = 0;
+    std::uint32_t indirectSymbolOffset = 0, indirectSymbolCount = 0;
+};
+
 struct MachOImage {
     bool bigEndian = false;
     std::uint32_t cpuType = 0, cpuSubtype = 0, fileType = 0, entryPoint = 0;
@@ -17,6 +42,12 @@ struct MachOImage {
     std::vector<MachOSegment> segments;
     std::vector<std::string> dependencies;
     bool hasDyldInfo = false;
+    bool hasDylinker = false;
+    std::string dylinkerPath;
+    MachOSymbolTable symbolTable;
+    MachODynamicSymbolTable dynamicSymbolTable;
+    std::vector<MachOSection> sections;
+    std::vector<MachOSymbol> symbols;
     std::uint64_t totalMappedBytes = 0;
 };
 
