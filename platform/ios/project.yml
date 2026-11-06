@@ -11,7 +11,7 @@ settings:
     CODE_SIGNING_ALLOWED: "NO"
     CLANG_CXX_LANGUAGE_STANDARD: "c++17"
     CLANG_CXX_LIBRARY: "libc++"
-    HEADER_SEARCH_PATHS: "$(SRCROOT)/../../include"
+    HEADER_SEARCH_PATHS: "$(SRCROOT)/../../include $(SRCROOT)/../../third_party"
     SWIFT_OBJC_BRIDGING_HEADER: "Sources/OldiOSHost-Bridging-Header.h"
 targets:
   OldiOSHost:
@@ -20,7 +20,11 @@ targets:
     sources:
       - path: Sources
       - path: ../../src/armv6.cpp
+      - path: ../../src/ipa_loader.cpp
       - path: ../../src/macho_loader.cpp
+      - path: ../../third_party/miniz.c
+      - path: ../../third_party/miniz_tdef.c
+      - path: ../../third_party/miniz_tinfl.c
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.oldios.host
