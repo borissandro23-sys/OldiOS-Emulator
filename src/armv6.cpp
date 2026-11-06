@@ -302,26 +302,61 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
         const unsigned rn = (ins >> 16) & 0xF;
         const unsigned rd = (ins >> 12) & 0xF;
 
+        std::uint32_t offset = ins & 0xFFFu;
         if (registerOffset) {
-            throw std::runtime_error("Register-offset LDR/STR is not implemented yet.");
+            // Register-offset addressing uses an immediate-shifted Rm.
+            // Bit 4 must be zero for this ARM single-data-transfer encoding.
+            if ((ins & (1u << 4)) != 0) {
+                throw std::runtime_error("Unsupported register-shifted LDR/STR addressing.");
+            }
+            const unsigned rm = ins & 0xFu;
+            const unsigned shiftType = (ins >> 5) & 3u;
+            const unsigned shiftAmount = (ins >> 7) & 0x1Fu;
+            const std::uint32_t value = rm == 15 ? address + 8 : regs_[rm];
+            switch (shiftType) {
+            case 0: // LSL #0 leaves the value unchanged.
+                offset = shiftAmount == 0 ? value : value << shiftAmount;
+                break;
+            case 1: // LSR #0 encodes LSR #32.
+                offset = shiftAmount == 0 ? 0u : value >> shiftAmount;
+                break;
+            case 2: // ASR #0 encodes ASR #32.
+                offset = shiftAmount == 0
+                    ? ((value & 0x80000000u) ? 0xFFFFFFFFu : 0u)
+                    : static_cast<std::uint32_t>(static_cast<std::int32_t>(value) >> shiftAmount);
+                break;
+            case 3: // ROR #0 encodes RRX, using CPSR.C.
+                if (shiftAmount == 0) {
+                    offset = ((cpsr_ & FLAG_C) ? 0x80000000u : 0u) | (value >> 1);
+                } else {
+                    offset = (value >> shiftAmount) | (value << (32u - shiftAmount));
+                }
+                break;
+            }
         }
 
         const std::uint32_t base = rn == 15 ? address + 8 : regs_[rn];
-        const std::uint32_t offset = ins & 0xFFFu;
         const std::uint32_t adjusted = addOffset ? base + offset : base - offset;
         const std::uint32_t effective = preIndex ? adjusted : base;
 
         if (load) {
-            regs_[rd] = byteTransfer ? read8(effective) : read32(effective);
+            const std::uint32_t value = byteTransfer ? read8(effective) : read32(effective);
+            if (rd == 15) regs_[15] = value & ~3u;
+            else regs_[rd] = value;
         } else {
-            if (byteTransfer) {
-                write8(effective, static_cast<std::uint8_t>(regs_[rd]));
-            } else {
-                write32(effective, regs_[rd]);
+            if (rd == 15) {
+                throw std::runtime_error("STR with Rd == PC is unsupported in this interpreter.");
             }
+            if (byteTransfer) write8(effective, static_cast<std::uint8_t>(regs_[rd]));
+            else write32(effective, regs_[rd]);
         }
 
-        if (!preIndex || writeBack) regs_[rn] = adjusted;
+        if (!preIndex || writeBack) {
+            if (rn == 15) {
+                throw std::runtime_error("LDR/STR write-back with Rn == PC is unpredictable.");
+            }
+            regs_[rn] = adjusted;
+        }
         return;
     }
 
