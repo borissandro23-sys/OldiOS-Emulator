@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <iostream>
+#include <iomanip>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 
@@ -121,13 +123,22 @@ bool Armv6::halted() const {
 }
 
 std::uint32_t Armv6::read32(std::uint32_t address) const {
-    if (address < memoryBase_) throw std::runtime_error("32-bit memory read out of range.");
-    const std::uint64_t offset = std::uint64_t(address) - memoryBase_;
-    if (offset + 4 > memory_.size()) throw std::runtime_error("32-bit memory read out of range.");
-    return static_cast<std::uint32_t>(memory_[offset]) |
-           (static_cast<std::uint32_t>(memory_[offset + 1]) << 8) |
-           (static_cast<std::uint32_t>(memory_[offset + 2]) << 16) |
-           (static_cast<std::uint32_t>(memory_[offset + 3]) << 24);
+    const std::uint64_t begin = memoryBase_;
+    const std::uint64_t end = begin + memory_.size();
+    const std::uint64_t offset = std::uint64_t(address) - begin;
+    if (std::uint64_t(address) < begin || offset + 4 > memory_.size()) {
+        std::ostringstream message;
+        message << "32-bit memory read out of range. Address: 0x"
+                << std::uppercase << std::hex << std::setw(8)
+                << std::setfill('0') << address
+                << ", mapped range: [0x" << std::setw(8) << begin
+                << ", 0x" << std::setw(9) << end << ").";
+        throw std::runtime_error(message.str());
+    }
+    return static_cast<std::uint32_t>(memory_[static_cast<std::size_t>(offset)]) |
+           (static_cast<std::uint32_t>(memory_[static_cast<std::size_t>(offset + 1)]) << 8) |
+           (static_cast<std::uint32_t>(memory_[static_cast<std::size_t>(offset + 2)]) << 16) |
+           (static_cast<std::uint32_t>(memory_[static_cast<std::size_t>(offset + 3)]) << 24);
 }
 
 void Armv6::write32(std::uint32_t address, std::uint32_t value) {
