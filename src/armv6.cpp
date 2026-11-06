@@ -248,6 +248,30 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
         return;
     }
 
+    // BX (Branch and Exchange), register form.
+    // The low bit selects ARM/Thumb state. This interpreter currently
+    // supports ARM state only, so Thumb targets are normalized to ARM
+    // word alignment; a Thumb decoder is still required for true interworking.
+    if ((ins & 0x0FFFFFF0u) == 0x012FFF10u) {
+        const unsigned rm = ins & 0xFu;
+        const std::uint32_t target = rm == 15 ? address + 8 : regs_[rm];
+        regs_[15] = target & ~3u;
+        return;
+    }
+
+    // BLX (Branch with Link and Exchange), register form (ARMv5+).
+    if ((ins & 0x0FFFFFF0u) == 0x012FFF30u) {
+        const unsigned rm = ins & 0xFu;
+        if (rm == 15) {
+            throw std::runtime_error("BLX with Rm == PC is unpredictable.");
+        }
+
+        const std::uint32_t target = regs_[rm];
+        regs_[14] = address + 4;
+        regs_[15] = target & ~3u;
+        return;
+    }
+
     // Single data transfer: immediate-offset LDR / STR, word or byte.
     if ((ins & 0x0C000000u) == 0x04000000u) {
         const bool registerOffset = (ins & (1u << 25)) != 0;
