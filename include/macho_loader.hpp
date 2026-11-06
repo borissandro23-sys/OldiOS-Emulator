@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <cstdint>
 #include <filesystem>
 #include <string>
@@ -40,6 +41,9 @@ struct MachOImage {
     bool bigEndian = false;
     std::uint32_t cpuType = 0, cpuSubtype = 0, fileType = 0, entryPoint = 0;
     bool hasEntryPoint = false;
+    bool hasInitialThreadState = false;
+    std::array<std::uint32_t, 16> initialRegisters{};
+    std::uint32_t initialCpsr = 0;
     std::vector<MachOSegment> segments;
     std::vector<std::string> dependencies;
     bool hasDyldInfo = false;
