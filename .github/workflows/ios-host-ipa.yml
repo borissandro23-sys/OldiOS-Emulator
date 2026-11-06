@@ -14,6 +14,12 @@ on:
       - "third_party/miniz*"
       - ".github/workflows/ios-host-ipa.yml"
 
+# Keep only the newest IPA build for this branch. A newer commit cancels
+# an older in-progress run and replaces an older pending run.
+concurrency:
+  group: ios-host-ipa-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build-ipa:
     runs-on: macos-15
