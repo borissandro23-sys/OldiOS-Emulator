@@ -62,6 +62,10 @@ struct ContentView: View {
             IPAFilePicker(
                 onPick: { url in
                     isImporterPresented = false
+                    guard url.pathExtension.lowercased() == "ipa" else {
+                        ipaStatus = "Выбран не IPA-файл. Выбери файл с расширением .ipa."
+                        return
+                    }
                     isInspecting = true
                     ipaStatus = OldiOSCoreBridge.inspectIPA(atPath: url.path)
                     isInspecting = false
@@ -71,7 +75,7 @@ struct ContentView: View {
                 },
                 onError: { message in
                     isImporterPresented = false
-                    ipaStatus = "Не удалось выбрать IPA: \(message)"
+                    ipaStatus = "Не удалось выбрать IPA: \\(message)"
                 }
             )
             .ignoresSafeArea()
@@ -82,8 +86,9 @@ struct ContentView: View {
     }
 }
 
-/// Uses the native iOS document picker and asks it to provide a local copy.
-/// IPA is a ZIP-based archive, but we register its filename extension explicitly.
+/// Accepts any file in the system picker so iOS Files providers do not hide
+/// IPA archives whose content type is not registered consistently.
+/// The selected filename is checked for the .ipa extension in ContentView.
 private struct IPAFilePicker: UIViewControllerRepresentable {
     let onPick: (URL) -> Void
     let onCancel: () -> Void
@@ -94,9 +99,8 @@ private struct IPAFilePicker: UIViewControllerRepresentable {
     }
 
     func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
-        let ipaType = UTType(filenameExtension: "ipa", conformingTo: .archive) ?? .zip
         let picker = UIDocumentPickerViewController(
-            forOpeningContentTypes: [ipaType],
+            forOpeningContentTypes: [.item],
             asCopy: true
         )
         picker.delegate = context.coordinator
