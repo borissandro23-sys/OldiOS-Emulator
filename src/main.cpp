@@ -16,12 +16,27 @@ constexpr int SCREEN_HEIGHT = 480;
 bool appOpen = false;
 std::wstring ipaStatus = L"Ctrl+O — открыть IPA";
 
+std::wstring utf8ToWide(const std::string& value) {
+    if (value.empty()) return {};
+    const int size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+                                         value.data(), static_cast<int>(value.size()),
+                                         nullptr, 0);
+    if (size <= 0) {
+        return L"[текст в неизвестной кодировке]";
+    }
+    std::wstring result(static_cast<std::size_t>(size), L'\\0');
+    MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
+                        value.data(), static_cast<int>(value.size()),
+                        result.data(), size);
+    return result;
+}
+
 void centeredText(HDC dc, const wchar_t* value, int y, int height,
                   COLORREF color, int fontSize, bool bold = false) {
     HFONT font = CreateFontW(-fontSize, 0, 0, 0, bold ? FW_BOLD : FW_NORMAL,
                              FALSE, FALSE, FALSE, DEFAULT_CHARSET,
                              OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
-                             CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Arial");
+                             CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Segoe UI");
     HFONT oldFont = static_cast<HFONT>(SelectObject(dc, font));
     SetTextColor(dc, color);
     SetBkMode(dc, TRANSPARENT);
@@ -62,15 +77,15 @@ void openIpa(HWND window) {
         ipaStatus = L"IPA: найдено приложение";
         const std::wstring details =
             L"IPA archive opened successfully.\n\nApp bundle:\n" +
-            std::wstring(info.appBundlePath.begin(), info.appBundlePath.end()) +
+            utf8ToWide(info.appBundlePath) +
             L"\n\nInfo.plist:\n" +
-            std::wstring(info.infoPlistPath.begin(), info.infoPlistPath.end()) +
+            utf8ToWide(info.infoPlistPath) +
             L"\n\nFiles in archive: " + std::to_wstring(info.fileCount) +
             L"\n\nThe app has not been executed.";
         MessageBoxW(window, details.c_str(), L"IPA Loader", MB_OK | MB_ICONINFORMATION);
     } else {
         ipaStatus = L"IPA: ошибка проверки";
-        const std::wstring details(info.error.begin(), info.error.end());
+        const std::wstring details = utf8ToWide(info.error);
         MessageBoxW(window, details.c_str(), L"IPA Loader", MB_OK | MB_ICONWARNING);
     }
     InvalidateRect(window, nullptr, TRUE);
