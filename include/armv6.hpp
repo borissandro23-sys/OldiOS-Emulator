@@ -41,6 +41,9 @@ private:
     std::uint32_t memoryBase_ = 0;
     bool halted_ = false;
     std::vector<ArmTraceEntry> trace_;
+    std::vector<MachOSection> imageSections_;
+    std::vector<MachOSymbol> imageSymbols_;
+    std::vector<std::uint32_t> indirectSymbols_;
 
     std::uint32_t read16(std::uint32_t address) const;
     void write16(std::uint32_t address, std::uint16_t value);
