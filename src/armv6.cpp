@@ -341,8 +341,30 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
 
         if (load) {
             const std::uint32_t value = byteTransfer ? read8(effective) : read32(effective);
-            if (rd == 15) regs_[15] = value & ~3u;
-            else regs_[rd] = value;
+            if (rd == 15) {
+                const std::uint32_t target = value & ~3u;
+                const std::uint64_t mappedBegin = memoryBase_;
+                const std::uint64_t mappedEnd = mappedBegin + memory_.size();
+                if (target < mappedBegin || std::uint64_t(target) + 4 > mappedEnd) {
+                    std::ostringstream message;
+                    message << "LDR loaded PC from an unmapped target. "
+                            << "Instruction PC=0x" << std::uppercase << std::hex
+                            << std::setw(8) << std::setfill('0') << address
+                            << ", pointer slot=0x" << std::setw(8) << effective
+                            << ", base=0x" << std::setw(8) << base
+                            << ", offset=0x" << std::setw(8) << offset
+                            << ", loaded value=0x" << std::setw(8) << value
+                            << ", aligned target=0x" << std::setw(8) << target
+                            << ", mapped range=[0x" << std::setw(8) << mappedBegin
+                            << ", 0x" << std::setw(9) << mappedEnd << "). "
+                            << "This is a control-flow target outside the loaded Mach-O image; "
+                            << "it may require dyld binding or another image to be loaded.";
+                    throw std::runtime_error(message.str());
+                }
+                regs_[15] = target;
+            } else {
+                regs_[rd] = value;
+            }
         } else {
             if (rd == 15) {
                 throw std::runtime_error("STR with Rd == PC is unsupported in this interpreter.");
