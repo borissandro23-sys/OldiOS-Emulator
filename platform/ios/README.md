@@ -12,22 +12,23 @@ Install XcodeGen, then run:
 
 The GitHub Actions workflow packages the unsigned app bundle into an IPA artifact.
 
-## C++ core integration
+## C++ core and IPA inspection
 
-The iOS target now compiles and links the shared C++ sources:
+The iOS target compiles and links the shared C++ sources:
 
-- src/armv6.cpp — ARM interpreter prototype
-- src/macho_loader.cpp — thin 32-bit ARM Mach-O metadata/segment loader
-- include/ — shared public headers
+- `src/armv6.cpp` — ARM interpreter prototype
+- `src/ipa_loader.cpp` — ZIP/IPA reader, executable extraction, CRC validation and basic 32-bit ARM Mach-O header validation
+- `src/macho_loader.cpp` — thin 32-bit ARM Mach-O load-command, segment, dependency and symbol metadata parser
+- `third_party/miniz*.c` — ZIP deflate and CRC support
 
-OldiOSCoreBridge.mm exposes a small Objective-C++ bridge to Swift. On launch, the host runs a tiny ARM instruction self-test (MOV R0, #42) and displays the result.
+The SwiftUI host provides a document picker for IPA files. The Objective-C++ bridge passes the selected file to the existing IPA loader, extracts the app's main executable into the app's temporary directory, then parses its Mach-O metadata. The source IPA is opened read-only and is not modified.
 
-The desktop CMake target links the same oldios_core static library, keeping the CPU and Mach-O code separate from the Windows UI.
+The result screen reports the app bundle path, executable name and size, CPU type/subtype, segment count, linked libraries and entry point when available.
 
 ## Current limitations
 
-- The bridge self-test confirms that the C++ core is compiled, linked, and callable from Swift; it does not run I Am Rich.
-- The Mach-O loader parses and maps one executable image, but does not load dependent dylibs or apply dyld relocations/bindings.
+- IPA support is limited to non-encrypted, non-ZIP64 archives using stored or deflate entries; fat/universal Mach-O selection is not implemented.
+- The Mach-O loader maps one executable image but does not load dependent dylibs or apply dyld relocations/bindings.
 - ARM/Thumb instruction support is incomplete.
 - Objective-C runtime, Foundation/UIKit compatibility, NIB loading, graphics, touch, and legacy app execution are not implemented.
-- The iOS target does not yet unpack IPA files; the current stage is core integration and a startup self-test.
+- Selecting and parsing an IPA is an inspection step only; it does not execute the old iOS application.
