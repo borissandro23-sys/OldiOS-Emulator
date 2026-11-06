@@ -73,18 +73,23 @@ void openIpa(HWND window) {
     if (!GetOpenFileNameW(&dialog)) return;
 
     IpaInfo info;
-    if (inspectIpa(std::filesystem::path(fileName), info)) {
-        ipaStatus = L"IPA: найдено приложение";
+    if (loadIpaExecutable(std::filesystem::path(fileName), info)) {
+        ipaStatus = L"IPA: Mach-O загружен";
         const std::wstring details =
-            L"IPA archive opened successfully.\n\nApp bundle:\n" +
+            L"Mach-O executable extracted and validated.\n\nApp bundle:\n" +
             utf8ToWide(info.appBundlePath) +
-            L"\n\nInfo.plist:\n" +
-            utf8ToWide(info.infoPlistPath) +
-            L"\n\nFiles in archive: " + std::to_wstring(info.fileCount) +
-            L"\n\nThe app has not been executed.";
-        MessageBoxW(window, details.c_str(), L"IPA Loader", MB_OK | MB_ICONINFORMATION);
+            L"\n\nExecutable:\n" +
+            utf8ToWide(info.executableName) +
+            L"\n\nCPU type: ARM (32-bit)\nCPU subtype: " +
+            std::to_wstring(info.cpuSubtype & 0x00ffffffu) +
+            L"\nMach-O file type: MH_EXECUTE\nSize: " +
+            std::to_wstring(info.executableSize) +
+            L" bytes\n\nSaved to:\n" +
+            info.executablePath.wstring() +
+            L"\n\nThe app has NOT been executed yet.";
+        MessageBoxW(window, details.c_str(), L"Mach-O Loader", MB_OK | MB_ICONINFORMATION);
     } else {
-        ipaStatus = L"IPA: ошибка проверки";
+        ipaStatus = L"IPA: ошибка загрузки Mach-O";
         const std::wstring details = utf8ToWide(info.error);
         MessageBoxW(window, details.c_str(), L"IPA Loader", MB_OK | MB_ICONWARNING);
     }
