@@ -1,4 +1,6 @@
 import SwiftUI
+import UIKit
+import UniformTypeIdentifiers
 
 struct ContentView: View {
     @State private var coreStatus = "Проверяем C++-ядро…"
@@ -56,30 +58,82 @@ struct ContentView: View {
             }
             .padding()
         }
-        .fileImporter(
-            isPresented: $isImporterPresented,
-            allowedContentTypes: [.item],
-            allowsMultipleSelection: false
-        ) { result in
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first else {
-                    ipaStatus = "Файл не выбран."
-                    return
+        .sheet(isPresented: $isImporterPresented) {
+            IPAFilePicker(
+                onPick: { url in
+                    isImporterPresented = false
+                    isInspecting = true
+                    ipaStatus = OldiOSCoreBridge.inspectIPA(atPath: url.path)
+                    isInspecting = false
+                },
+                onCancel: {
+                    isImporterPresented = false
+                },
+                onError: { message in
+                    isImporterPresented = false
+                    ipaStatus = "Не удалось выбрать IPA: \(message)"
                 }
-                isInspecting = true
-                let hasAccess = url.startAccessingSecurityScopedResource()
-                ipaStatus = OldiOSCoreBridge.inspectIPA(atPath: url.path)
-                if hasAccess {
-                    url.stopAccessingSecurityScopedResource()
-                }
-                isInspecting = false
-            case .failure(let error):
-                ipaStatus = "Не удалось открыть IPA: \(error.localizedDescription)"
-            }
+            )
+            .ignoresSafeArea()
         }
         .onAppear {
             coreStatus = OldiOSCoreBridge.runtimeStatus()
+        }
+    }
+}
+
+/// Uses the native iOS document picker and asks it to provide a local copy.
+/// IPA is a ZIP-based archive, but we register its filename extension explicitly.
+private struct IPAFilePicker: UIViewControllerRepresentable {
+    let onPick: (URL) -> Void
+    let onCancel: () -> Void
+    let onError: (String) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onPick: onPick, onCancel: onCancel, onError: onError)
+    }
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let ipaType = UTType(filenameExtension: "ipa", conformingTo: .archive) ?? .zip
+        let picker = UIDocumentPickerViewController(
+            forOpeningContentTypes: [ipaType],
+            asCopy: true
+        )
+        picker.delegate = context.coordinator
+        picker.allowsMultipleSelection = false
+        return picker
+    }
+
+    func updateUIViewController(_ controller: UIDocumentPickerViewController, context: Context) {}
+
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        private let onPick: (URL) -> Void
+        private let onCancel: () -> Void
+        private let onError: (String) -> Void
+
+        init(
+            onPick: @escaping (URL) -> Void,
+            onCancel: @escaping () -> Void,
+            onError: @escaping (String) -> Void
+        ) {
+            self.onPick = onPick
+            self.onCancel = onCancel
+            self.onError = onError
+        }
+
+        func documentPicker(
+            _ controller: UIDocumentPickerViewController,
+            didPickDocumentsAt urls: [URL]
+        ) {
+            guard let url = urls.first else {
+                onError("Системный проводник не вернул выбранный файл.")
+                return
+            }
+            onPick(url)
+        }
+
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+            onCancel()
         }
     }
 }
