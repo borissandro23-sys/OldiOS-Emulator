@@ -1,61 +1,59 @@
 # OldiOS-Emulator
 
-An educational ARM instruction-emulation project. The first milestone is a small ARM-state interpreter that can be built on Windows, Linux, and macOS with CMake and a C++17 compiler.
+An educational iOS-era executable loading and ARM emulation project. The current milestone can extract and inspect a 32-bit ARM Mach-O executable from an IPA archive. It is **not yet capable of running iOS applications**.
 
 ## Current status
 
-This is an early CPU-core prototype, **not an iOS emulator** and not an IPA launcher.
-
-Implemented in this first milestone:
-
-- 16 ARM registers (r0-r15) and a basic CPSR flag model
-- ARM condition checks
-- A subset of ARM data-processing instructions
-- Immediate-offset word/byte LDR and STR
-- B and BL branches
-- A small built-in machine-code demonstration
+Implemented:
+- Basic ARM-state interpreter prototype (limited instruction subset)
+- Win32 iPhone-like 320x480 shell
+- IPA ZIP central-directory parsing
+- ZIP stored and deflate decompression (vendored miniz 2.1.0)
+- Safe extraction of the app's main executable into the system temporary directory
+- ZIP CRC validation
+- 32-bit little-/big-endian Mach-O header validation for ARM executables
+- Checks that the Mach-O file type is MH_EXECUTE
 
 Not implemented:
+- Universal/fat Mach-O architecture selection
+- Binary plist parsing (CFBundleExecutable falls back to the .app bundle name)
+- Complete ARMv6/Thumb instruction support
+- Mach-O load-command processing, dynamic linking, relocations, and dyld
+- Objective-C runtime, Foundation, UIKit, graphics, audio, or touch event services
+- Running an iOS application
 
-- Thumb instruction set
-- Full ARMv6 instruction coverage, exceptions, coprocessors, MMU, or accurate timing
-- Mach-O loading, iOS system frameworks, UIKit, graphics, audio, or touch input
-- Running iOS applications or IPA files
-
-A CPU instruction interpreter alone cannot run an iOS app. An actual app also depends on the executable format, operating-system services, frameworks, graphics, and other runtime components. This repository deliberately starts with a small, testable CPU core.
+**Important:** Loading a Mach-O file only means extracting it and validating its header. It does not execute the app. The emulator does not yet provide the iOS operating-system environment required by applications.
 
 ## Build on Windows
 
-Install:
-- Git
-- CMake
-- Visual Studio 2022 with the **Desktop development with C++** workload, or another C++17 compiler
+Install Git, CMake, and a C++17 compiler (Visual Studio 2022 or MinGW-w64).
 
-Then, from the repository folder:
+For MinGW:
+```bash
+cmake -S . -B build -G "MinGW Makefiles"
+cmake --build build
+./build/oldios-emu.exe
+```
 
+For Visual Studio:
 ```powershell
 cmake -S . -B build
 cmake --build build --config Release
 .\build\Release\oldios-emu.exe
 ```
 
-If using MinGW or another single-configuration generator, the executable may be at `build\oldios-emu.exe`.
+Choose an IPA with Ctrl+O. The loader extracts the main executable to the operating system's temporary directory and checks its Mach-O header. It does not launch the application.
 
-## Expected demo
+## Third-party code
 
-The demo executes a short ARM instruction sequence, stores a value in emulated memory, loads it back, and checks the zero flag. The expected final values include:
+The ZIP deflate implementation is miniz 2.1.0, distributed under its permissive license included in `third_party/miniz.h` and `third_party/miniz.cpp`.
 
-- `r3 = 10`
-- CPSR zero flag set
+## Roadmap
 
-## Project direction
+1. Add tests using real IPA files and inspect their Mach-O load commands.
+2. Add thin/fat Mach-O parsing and segment loading.
+3. Expand ARMv6 and Thumb execution with unit tests.
+4. Implement a small Mach-O runtime and required system-call stubs.
+5. Research a minimal Objective-C/Foundation/UIKit compatibility layer.
 
-Possible future milestones:
-
-1. Add unit tests for each implemented instruction.
-2. Add Thumb decoding and execution.
-3. Add a small assembler or load raw ARM test binaries.
-4. Improve memory access and exceptions.
-5. Research what additional operating-system compatibility work would be required for historical software preservation.
-
-Only use software and firmware images that you are legally entitled to use.
+Only use software and firmware images you are legally entitled to use.
