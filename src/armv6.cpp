@@ -352,15 +352,20 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
                 if (target < mappedBegin || std::uint64_t(target) + 4 > mappedEnd) {
                     std::ostringstream message;
                     message << "LDR loaded PC from an unmapped target. "
-                            << "Instruction PC=0x" << std::uppercase << std::hex
+                            << "Error-causing addresses: "
+                            << "instruction=0x" << std::uppercase << std::hex
                             << std::setw(8) << std::setfill('0') << address
-                            << ", pointer slot=0x" << std::setw(8) << effective
-                            << ", base=0x" << std::setw(8) << base
-                            << ", offset=0x" << std::setw(8) << offset
-                            << ", loaded value=0x" << std::setw(8) << value
-                            << ", aligned target=0x" << std::setw(8) << target
-                            << ", mapped range=[0x" << std::setw(8) << mappedBegin
-                            << ", 0x" << std::setw(9) << mappedEnd << ").";
+                            << "; memory-read/pointer-slot=0x" << std::setw(8) << effective
+                            << "; PC-base=0x" << std::setw(8) << base
+                            << "; register-offset=0x" << std::setw(8) << offset
+                            << "; loaded-branch-target=0x" << std::setw(8) << value
+                            << "; aligned-target=0x" << std::setw(8) << target
+                            << "; mapped-range=[0x" << std::setw(8) << mappedBegin
+                            << ", 0x" << std::setw(9) << mappedEnd << ")."
+                            << " Recent instruction addresses:"; 
+                    for (const auto& item : trace_) {
+                        message << " 0x" << std::setw(8) << item.pc;
+                    }
 
                     bool foundPointerSection = false;
                     for (const auto& section : imageSections_) {
