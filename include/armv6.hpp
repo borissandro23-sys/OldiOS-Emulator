@@ -7,6 +7,14 @@
 
 #include "macho_loader.hpp"
 
+struct ArmTraceEntry {
+    std::uint32_t pc = 0;
+    std::uint32_t instruction = 0;
+    std::array<std::uint32_t, 16> before{};
+    std::array<std::uint32_t, 16> after{};
+    bool completed = false;
+};
+
 class Armv6 {
 public:
     static constexpr std::size_t kMemorySize = 64 * 1024;
@@ -24,6 +32,7 @@ public:
     std::uint32_t reg(std::size_t index) const;
     std::uint32_t cpsr() const;
     bool halted() const;
+    const std::vector<ArmTraceEntry>& recentTrace() const;
 
 private:
     std::array<std::uint32_t, 16> regs_{};
@@ -31,6 +40,7 @@ private:
     std::vector<std::uint8_t> memory_;
     std::uint32_t memoryBase_ = 0;
     bool halted_ = false;
+    std::vector<ArmTraceEntry> trace_;
 
     std::uint32_t read32(std::uint32_t address) const;
     void write32(std::uint32_t address, std::uint32_t value);
