@@ -9,6 +9,7 @@
 #include "macho_loader.hpp"
 #include "armv6.hpp"
 
+#include <algorithm>
 #include <filesystem>
 #include <string>
 #include <sstream>
