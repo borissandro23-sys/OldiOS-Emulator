@@ -12,6 +12,7 @@ constexpr std::uint32_t FLAG_N = 1u << 31;
 constexpr std::uint32_t FLAG_Z = 1u << 30;
 constexpr std::uint32_t FLAG_C = 1u << 29;
 constexpr std::uint32_t FLAG_V = 1u << 28;
+constexpr std::uint32_t FLAG_T = 1u << 5;
 constexpr std::uint64_t MAX_IMAGE_MEMORY = 256ull * 1024 * 1024;
 constexpr std::uint64_t STACK_SIZE = 64ull * 1024;
 
@@ -171,6 +172,14 @@ std::uint32_t Armv6::read32(std::uint32_t address) const {
            (static_cast<std::uint32_t>(memory_[static_cast<std::size_t>(offset + 3)]) << 24);
 }
 
+void Armv6::write16(std::uint32_t address, std::uint16_t value) {
+    if (address < memoryBase_) throw std::runtime_error("16-bit memory write out of range.");
+    const std::uint64_t offset = std::uint64_t(address) - memoryBase_;
+    if (offset + 2 > memory_.size()) throw std::runtime_error("16-bit memory write out of range.");
+    memory_[static_cast<std::size_t>(offset)] = static_cast<std::uint8_t>(value);
+    memory_[static_cast<std::size_t>(offset + 1)] = static_cast<std::uint8_t>(value >> 8);
+}
+
 void Armv6::write32(std::uint32_t address, std::uint32_t value) {
     if (address < memoryBase_) throw std::runtime_error("32-bit memory write out of range.");
     const std::uint64_t offset = std::uint64_t(address) - memoryBase_;
@@ -179,6 +188,14 @@ void Armv6::write32(std::uint32_t address, std::uint32_t value) {
     memory_[offset + 1] = static_cast<std::uint8_t>(value >> 8);
     memory_[offset + 2] = static_cast<std::uint8_t>(value >> 16);
     memory_[offset + 3] = static_cast<std::uint8_t>(value >> 24);
+}
+
+std::uint32_t Armv6::read16(std::uint32_t address) const {
+    if (address < memoryBase_) throw std::runtime_error("16-bit memory read out of range.");
+    const std::uint64_t offset = std::uint64_t(address) - memoryBase_;
+    if (offset + 2 > memory_.size()) throw std::runtime_error("16-bit memory read out of range.");
+    return static_cast<std::uint32_t>(memory_[static_cast<std::size_t>(offset)]) |
+           (static_cast<std::uint32_t>(memory_[static_cast<std::size_t>(offset + 1)]) << 8);
 }
 
 std::uint32_t Armv6::read8(std::uint32_t address) const {
@@ -255,7 +272,8 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
     if ((ins & 0x0FFFFFF0u) == 0x012FFF10u) {
         const unsigned rm = ins & 0xFu;
         const std::uint32_t target = rm == 15 ? address + 8 : regs_[rm];
-        regs_[15] = target & ~3u;
+        if (target & 1u) { cpsr_ |= FLAG_T; regs_[15] = target & ~1u; }
+        else { cpsr_ &= ~FLAG_T; regs_[15] = target & ~3u; }
         return;
     }
 
@@ -268,7 +286,8 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
 
         const std::uint32_t target = regs_[rm];
         regs_[14] = address + 4;
-        regs_[15] = target & ~3u;
+        if (target & 1u) { cpsr_ |= FLAG_T; regs_[15] = target & ~1u; }
+        else { cpsr_ &= ~FLAG_T; regs_[15] = target & ~3u; }
         return;
     }
 
@@ -574,25 +593,20 @@ void Armv6::executeThumb(std::uint16_t ins, std::uint32_t address) {
 void Armv6::step() {
     if (halted_) return;
     const std::uint32_t address = regs_[15];
-    const std::uint32_t instruction = read32(address);
-
+    const bool thumb = (cpsr_ & FLAG_T) != 0;
+    const std::uint32_t instruction = thumb ? read16(address) : read32(address);
     ArmTraceEntry entry;
-    entry.pc = address;
-    entry.instruction = instruction;
-    entry.before = regs_;
+    entry.pc = address; entry.instruction = instruction; entry.before = regs_;
     trace_.push_back(entry);
     constexpr std::size_t TRACE_LIMIT = 12;
     if (trace_.size() > TRACE_LIMIT) trace_.erase(trace_.begin());
-
-    regs_[15] = address + 4;
+    regs_[15] = address + (thumb ? 2u : 4u);
     try {
-        execute(instruction, address);
-        trace_.back().after = regs_;
-        trace_.back().completed = true;
+        if (thumb) executeThumb(static_cast<std::uint16_t>(instruction), address);
+        else execute(instruction, address);
+        trace_.back().after = regs_; trace_.back().completed = true;
     } catch (...) {
-        trace_.back().after = regs_;
-        trace_.back().completed = false;
-        throw;
+        trace_.back().after = regs_; trace_.back().completed = false; throw;
     }
 }
 
