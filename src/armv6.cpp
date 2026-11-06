@@ -1,5 +1,6 @@
 #include "armv6.hpp"
 
+#include <algorithm>
 #include <iostream>
 #include <stdexcept>
 #include <string>
@@ -9,6 +10,7 @@ constexpr std::uint32_t FLAG_N = 1u << 31;
 constexpr std::uint32_t FLAG_Z = 1u << 30;
 constexpr std::uint32_t FLAG_C = 1u << 29;
 constexpr std::uint32_t FLAG_V = 1u << 28;
+constexpr std::uint64_t MAX_IMAGE_MEMORY = 256ull * 1024 * 1024;
 
 std::int32_t signExtend24(std::uint32_t value) {
     if ((value & 0x00800000u) != 0) {
@@ -34,6 +36,7 @@ void Armv6::loadProgram(const std::vector<std::uint32_t>& words,
         throw std::runtime_error("Program address must be 4-byte aligned.");
     }
 
+    memoryBase_ = 0;
     if (static_cast<std::uint64_t>(address) +
             words.size() * sizeof(std::uint32_t) > memory_.size()) {
         throw std::runtime_error("Program does not fit in emulator memory.");
@@ -45,6 +48,59 @@ void Armv6::loadProgram(const std::vector<std::uint32_t>& words,
 
     regs_[15] = address;
     halted_ = false;
+}
+
+
+void Armv6::loadImage(const MachOImage& image) {
+    if (image.segments.empty() || !image.hasEntryPoint)
+        throw std::runtime_error("Mach-O image has no loadable segments or entry point.");
+
+    std::uint64_t low = UINT64_MAX, high = 0;
+    for (const auto& segment : image.segments) {
+        if (!segment.vmSize || segment.memory.size() != segment.vmSize)
+            throw std::runtime_error("Mach-O segment has an invalid memory buffer.");
+        const std::uint64_t begin = segment.vmAddress;
+        const std::uint64_t end = begin + segment.vmSize;
+        if (end > (std::uint64_t{1} << 32) || end <= begin)
+            throw std::runtime_error("Mach-O segment address range overflows.");
+        low = std::min(low, begin);
+        high = std::max(high, end);
+    }
+    if (high - low > MAX_IMAGE_MEMORY)
+        throw std::runtime_error("Mach-O virtual address span exceeds 256 MiB.");
+
+    for (std::size_t i = 0; i < image.segments.size(); ++i) {
+        const std::uint64_t a0 = image.segments[i].vmAddress;
+        const std::uint64_t a1 = a0 + image.segments[i].vmSize;
+        for (std::size_t j = i + 1; j < image.segments.size(); ++j) {
+            const std::uint64_t b0 = image.segments[j].vmAddress;
+            const std::uint64_t b1 = b0 + image.segments[j].vmSize;
+            if (a0 < b1 && b0 < a1)
+                throw std::runtime_error("Mach-O segments overlap in virtual memory.");
+        }
+    }
+
+    const bool entryMapped = std::any_of(image.segments.begin(), image.segments.end(),
+        [&](const MachOSegment& segment) {
+            return image.entryPoint >= segment.vmAddress &&
+                std::uint64_t(image.entryPoint) + 4 <=
+                    std::uint64_t(segment.vmAddress) + segment.vmSize;
+        });
+    if (!entryMapped || (image.entryPoint & 3u))
+        throw std::runtime_error("Mach-O entry point is not a mapped, aligned ARM instruction.");
+
+    memoryBase_ = static_cast<std::uint32_t>(low);
+    memory_.assign(static_cast<std::size_t>(high - low), 0);
+    for (const auto& segment : image.segments) {
+        const auto offset = static_cast<std::size_t>(std::uint64_t(segment.vmAddress) - low);
+        std::copy(segment.memory.begin(), segment.memory.end(), memory_.begin() + offset);
+    }
+    reset();
+    regs_[15] = image.entryPoint;
+}
+
+std::uint32_t Armv6::peek32(std::uint32_t address) const {
+    return read32(address);
 }
 
 std::uint32_t Armv6::reg(std::size_t index) const {
@@ -63,39 +119,37 @@ bool Armv6::halted() const {
 }
 
 std::uint32_t Armv6::read32(std::uint32_t address) const {
-    if (static_cast<std::uint64_t>(address) + 4 > memory_.size()) {
-        throw std::runtime_error("32-bit memory read out of range.");
-    }
-
-    return static_cast<std::uint32_t>(memory_[address]) |
-           (static_cast<std::uint32_t>(memory_[address + 1]) << 8) |
-           (static_cast<std::uint32_t>(memory_[address + 2]) << 16) |
-           (static_cast<std::uint32_t>(memory_[address + 3]) << 24);
+    if (address < memoryBase_) throw std::runtime_error("32-bit memory read out of range.");
+    const std::uint64_t offset = std::uint64_t(address) - memoryBase_;
+    if (offset + 4 > memory_.size()) throw std::runtime_error("32-bit memory read out of range.");
+    return static_cast<std::uint32_t>(memory_[offset]) |
+           (static_cast<std::uint32_t>(memory_[offset + 1]) << 8) |
+           (static_cast<std::uint32_t>(memory_[offset + 2]) << 16) |
+           (static_cast<std::uint32_t>(memory_[offset + 3]) << 24);
 }
 
 void Armv6::write32(std::uint32_t address, std::uint32_t value) {
-    if (static_cast<std::uint64_t>(address) + 4 > memory_.size()) {
-        throw std::runtime_error("32-bit memory write out of range.");
-    }
-
-    memory_[address] = static_cast<std::uint8_t>(value);
-    memory_[address + 1] = static_cast<std::uint8_t>(value >> 8);
-    memory_[address + 2] = static_cast<std::uint8_t>(value >> 16);
-    memory_[address + 3] = static_cast<std::uint8_t>(value >> 24);
+    if (address < memoryBase_) throw std::runtime_error("32-bit memory write out of range.");
+    const std::uint64_t offset = std::uint64_t(address) - memoryBase_;
+    if (offset + 4 > memory_.size()) throw std::runtime_error("32-bit memory write out of range.");
+    memory_[offset] = static_cast<std::uint8_t>(value);
+    memory_[offset + 1] = static_cast<std::uint8_t>(value >> 8);
+    memory_[offset + 2] = static_cast<std::uint8_t>(value >> 16);
+    memory_[offset + 3] = static_cast<std::uint8_t>(value >> 24);
 }
 
 std::uint32_t Armv6::read8(std::uint32_t address) const {
-    if (address >= memory_.size()) {
-        throw std::runtime_error("8-bit memory read out of range.");
-    }
-    return memory_[address];
+    if (address < memoryBase_) throw std::runtime_error("8-bit memory read out of range.");
+    const std::uint64_t offset = std::uint64_t(address) - memoryBase_;
+    if (offset >= memory_.size()) throw std::runtime_error("8-bit memory read out of range.");
+    return memory_[static_cast<std::size_t>(offset)];
 }
 
 void Armv6::write8(std::uint32_t address, std::uint8_t value) {
-    if (address >= memory_.size()) {
-        throw std::runtime_error("8-bit memory write out of range.");
-    }
-    memory_[address] = value;
+    if (address < memoryBase_) throw std::runtime_error("8-bit memory write out of range.");
+    const std::uint64_t offset = std::uint64_t(address) - memoryBase_;
+    if (offset >= memory_.size()) throw std::runtime_error("8-bit memory write out of range.");
+    memory_[static_cast<std::size_t>(offset)] = value;
 }
 
 bool Armv6::conditionPassed(std::uint32_t condition) const {
