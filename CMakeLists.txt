@@ -10,6 +10,7 @@ if (WIN32)
         src/main.cpp
         src/armv6.cpp
         src/ipa_loader.cpp
+        third_party/miniz.cpp
     )
     target_link_libraries(oldios-emu PRIVATE user32 gdi32 comdlg32)
 else()
@@ -17,10 +18,11 @@ else()
         src/main.cpp
         src/armv6.cpp
         src/ipa_loader.cpp
+        third_party/miniz.cpp
     )
 endif()
 
-target_include_directories(oldios-emu PRIVATE include)
+target_include_directories(oldios-emu PRIVATE include third_party)
 
 if (MSVC)
     target_compile_options(oldios-emu PRIVATE /W4)
