@@ -12,6 +12,7 @@
 #include <filesystem>
 #include <string>
 #include <sstream>
+#include <stdexcept>
 #include <iomanip>
 
 namespace {
