@@ -1,6 +1,7 @@
 #import "OldiOSCoreBridge.h"
 
 #include "armv6.hpp"
+#include "ipa_loader.hpp"
 #include "macho_loader.hpp"
 
 #include <exception>
@@ -22,7 +23,7 @@
         if (cpu.reg(0) != 42u || cpu.reg(15) != 0x1004u) {
             return @"C++ core linked, but ARM self-test failed.";
         }
-        return @"C++ core: linked\nARM self-test: passed (R0 = 42)\nMach-O loader: compiled";
+        return @"C++ core: linked\nARM self-test: passed (R0 = 42)\nMach-O loader: compiled\nIPA loader: compiled";
     } catch (const std::exception& error) {
         return [NSString stringWithFormat:@"C++ core test failed: %s", error.what()];
     }
@@ -43,6 +44,46 @@
             image.hasEntryPoint ? image.entryPoint : 0u];
     } catch (const std::exception& error) {
         return [NSString stringWithFormat:@"Mach-O inspection failed: %s", error.what()];
+    }
+}
+
++ (NSString *)inspectIPAAtPath:(NSString *)path {
+    try {
+        IpaInfo ipa;
+        const std::filesystem::path ipaPath(path.fileSystemRepresentation);
+        if (!loadIpaExecutable(ipaPath, ipa)) {
+            return [NSString stringWithFormat:@"IPA analysis failed:\n%s",
+                    ipa.error.c_str()];
+        }
+
+        MachOImage image;
+        std::string error;
+        if (!loadMachOImage(ipa.executablePath, image, error)) {
+            return [NSString stringWithFormat:@"IPA extracted, but Mach-O parsing failed:\n%s",
+                    error.c_str()];
+        }
+
+        std::string dependencies;
+        for (const auto& dependency : image.dependencies) {
+            dependencies += "• " + dependency + "\n";
+        }
+        if (dependencies.empty()) dependencies = "Не указаны\n";
+
+        return [NSString stringWithFormat:
+            @"IPA успешно разобран\nApp bundle: %s\nExecutable: %s\nРазмер Mach-O: %llu байт\nCPU type: 0x%08X\nCPU subtype: 0x%08X\nСегменты: %lu\nЗависимости (%lu):\n%s\nТочка входа: %@",
+            ipa.appBundlePath.c_str(),
+            ipa.executableName.c_str(),
+            static_cast<unsigned long long>(ipa.executableSize),
+            ipa.cpuType,
+            ipa.cpuSubtype,
+            static_cast<unsigned long>(image.segments.size()),
+            static_cast<unsigned long>(image.dependencies.size()),
+            dependencies.c_str(),
+            image.hasEntryPoint
+                ? [NSString stringWithFormat:@"0x%08X", image.entryPoint]
+                : @"не найдена"];
+    } catch (const std::exception& error) {
+        return [NSString stringWithFormat:@"IPA inspection failed: %s", error.what()];
     }
 }
 
