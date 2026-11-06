@@ -63,14 +63,21 @@
                     error.c_str()];
         }
 
+        // Verify that the parsed image can be mapped into the ARM address space.
+        // This prepares the initial CPU state but deliberately does not execute app code.
+        Armv6 cpu;
+        cpu.loadImage(image);
+        const std::uint32_t firstInstruction = cpu.peek32(cpu.reg(15));
+        const bool thumbMode = (cpu.cpsr() & (1u << 5)) != 0;
+
         std::string dependencies;
         for (const auto& dependency : image.dependencies) {
-            dependencies += "• " + dependency + "\n";
+            dependencies += "• " + dependency + "\\n";
         }
-        if (dependencies.empty()) dependencies = "Не указаны\n";
+        if (dependencies.empty()) dependencies = "Не указаны\\n";
 
         return [NSString stringWithFormat:
-            @"IPA успешно разобран\nApp bundle: %s\nExecutable: %s\nРазмер Mach-O: %llu байт\nCPU type: 0x%08X\nCPU subtype: 0x%08X\nСегменты: %lu\nЗависимости (%lu):\n%s\nТочка входа: %@",
+            @"IPA успешно разобран\\nApp bundle: %s\\nExecutable: %s\\nРазмер Mach-O: %llu байт\\nCPU type: 0x%08X\\nCPU subtype: 0x%08X\\nСегменты: %lu\\nЗависимости (%lu):\\n%s\\nТочка входа: 0x%08X\\nНачальное состояние: загружено\\nLC_UNIXTHREAD: %@\\nРежим CPU: %@\\nPC: 0x%08X\\nSP: 0x%08X\\nCPSR: 0x%08X\\nПервая инструкция: 0x%08X\\nВыполнение кода: НЕ ЗАПУСКАЛОСЬ",
             ipa.appBundlePath.c_str(),
             ipa.executableName.c_str(),
             static_cast<unsigned long long>(ipa.executableSize),
@@ -79,9 +86,13 @@
             static_cast<unsigned long>(image.segments.size()),
             static_cast<unsigned long>(image.dependencies.size()),
             dependencies.c_str(),
-            image.hasEntryPoint
-                ? [NSString stringWithFormat:@"0x%08X", image.entryPoint]
-                : @"не найдена"];
+            image.entryPoint,
+            image.hasInitialThreadState ? @"найден" : @"отсутствует (резервное состояние)",
+            thumbMode ? @"Thumb" : @"ARM",
+            cpu.reg(15),
+            cpu.reg(13),
+            cpu.cpsr(),
+            firstInstruction];
     } catch (const std::exception& error) {
         return [NSString stringWithFormat:@"IPA inspection failed: %s", error.what()];
     }
