@@ -511,7 +511,30 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
                              std::to_string(address));
 }
 
-void Armv6::executeThumb(std::uint16_t ins, std::uint32_t address) {
+void Armv6::executeThumb(std::uint32_t instruction, std::uint32_t address) {
+    const std::uint16_t ins = static_cast<std::uint16_t>(instruction);
+    // Thumb-2 BLX (immediate): first halfword 11110..., second 11 J1 0 J2 imm10H 0.
+    if ((ins & 0xF800u) == 0xF000u) {
+        const std::uint16_t second = static_cast<std::uint16_t>(instruction >> 16);
+        if ((second & 0xD001u) == 0xC000u) {
+            const std::uint32_t sbit = (ins >> 10) & 1u;
+            const std::uint32_t j1 = (second >> 13) & 1u;
+            const std::uint32_t j2 = (second >> 11) & 1u;
+            const std::uint32_t i1 = (~(j1 ^ sbit)) & 1u;
+            const std::uint32_t i2 = (~(j2 ^ sbit)) & 1u;
+            const std::uint32_t encoded = (sbit << 24) | (i1 << 23) | (i2 << 22) |
+                ((ins & 0x03FFu) << 12) | (((second >> 1) & 0x03FFu) << 2);
+            const std::int32_t offset = (encoded & 0x01000000u)
+                ? static_cast<std::int32_t>(encoded | 0xFE000000u)
+                : static_cast<std::int32_t>(encoded);
+            regs_[14] = (address + 4) | 1u;
+            const std::uint32_t base = (address + 4) & ~3u;
+            regs_[15] = static_cast<std::uint32_t>(static_cast<std::int64_t>(base) + offset) & ~3u;
+            cpsr_ &= ~FLAG_T; // BLX immediate enters ARM state.
+            return;
+        }
+        throw std::runtime_error("Unsupported 32-bit Thumb instruction at address " + std::to_string(address));
+    }
     const auto setNz = [&](std::uint32_t value) {
         cpsr_ &= ~(FLAG_N | FLAG_Z);
         if (value & 0x80000000u) cpsr_ |= FLAG_N;
@@ -594,15 +617,17 @@ void Armv6::step() {
     if (halted_) return;
     const std::uint32_t address = regs_[15];
     const bool thumb = (cpsr_ & FLAG_T) != 0;
-    const std::uint32_t instruction = thumb ? read16(address) : read32(address);
+    std::uint32_t instruction = thumb ? read16(address) : read32(address);
+    const bool thumbWide = thumb && ((instruction & 0xF800u) == 0xF000u);
+    if (thumbWide) instruction |= read16(address + 2) << 16;
     ArmTraceEntry entry;
     entry.pc = address; entry.instruction = instruction; entry.before = regs_;
     trace_.push_back(entry);
     constexpr std::size_t TRACE_LIMIT = 12;
     if (trace_.size() > TRACE_LIMIT) trace_.erase(trace_.begin());
-    regs_[15] = address + (thumb ? 2u : 4u);
+    regs_[15] = address + (thumb ? (thumbWide ? 4u : 2u) : 4u);
     try {
-        if (thumb) executeThumb(static_cast<std::uint16_t>(instruction), address);
+        if (thumb) executeThumb(instruction, address);
         else execute(instruction, address);
         trace_.back().after = regs_; trace_.back().completed = true;
     } catch (...) {
