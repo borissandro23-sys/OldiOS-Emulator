@@ -9,12 +9,14 @@ if (WIN32)
     add_executable(oldios-emu WIN32
         src/main.cpp
         src/armv6.cpp
+        src/ipa_loader.cpp
     )
-    target_link_libraries(oldios-emu PRIVATE user32 gdi32)
+    target_link_libraries(oldios-emu PRIVATE user32 gdi32 comdlg32)
 else()
     add_executable(oldios-emu
         src/main.cpp
         src/armv6.cpp
+        src/ipa_loader.cpp
     )
 endif()
 
