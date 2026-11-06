@@ -3,11 +3,18 @@
 #define _UNICODE
 #include <windows.h>
 #include <windowsx.h>
+#include <commdlg.h>
+
+#include "ipa_loader.hpp"
+
+#include <filesystem>
+#include <string>
 
 namespace {
 constexpr int SCREEN_WIDTH = 320;
 constexpr int SCREEN_HEIGHT = 480;
 bool appOpen = false;
+std::wstring ipaStatus = L"Ctrl+O — открыть IPA";
 
 void centeredText(HDC dc, const wchar_t* value, int y, int height,
                   COLORREF color, int fontSize, bool bold = false) {
@@ -19,7 +26,7 @@ void centeredText(HDC dc, const wchar_t* value, int y, int height,
     SetTextColor(dc, color);
     SetBkMode(dc, TRANSPARENT);
     RECT rect{0, y, SCREEN_WIDTH, y + height};
-    DrawTextW(dc, value, -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    DrawTextW(dc, value, -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
     SelectObject(dc, oldFont);
     DeleteObject(font);
 }
@@ -37,13 +44,44 @@ void roundedBox(HDC dc, int left, int top, int right, int bottom,
     DeleteObject(pen);
 }
 
+void openIpa(HWND window) {
+    wchar_t fileName[32768]{};
+    OPENFILENAMEW dialog{};
+    dialog.lStructSize = sizeof(dialog);
+    dialog.hwndOwner = window;
+    dialog.lpstrFilter = L"iOS application (*.ipa)\0*.ipa\0All files (*.*)\0*.*\0";
+    dialog.lpstrFile = fileName;
+    dialog.nMaxFile = 32768;
+    dialog.lpstrTitle = L"Select an IPA file";
+    dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+
+    if (!GetOpenFileNameW(&dialog)) return;
+
+    IpaInfo info;
+    if (inspectIpa(std::filesystem::path(fileName), info)) {
+        ipaStatus = L"IPA: найдено приложение";
+        const std::wstring details =
+            L"IPA archive opened successfully.\n\nApp bundle:\n" +
+            std::wstring(info.appBundlePath.begin(), info.appBundlePath.end()) +
+            L"\n\nInfo.plist:\n" +
+            std::wstring(info.infoPlistPath.begin(), info.infoPlistPath.end()) +
+            L"\n\nFiles in archive: " + std::to_wstring(info.fileCount) +
+            L"\n\nThe app has not been executed.";
+        MessageBoxW(window, details.c_str(), L"IPA Loader", MB_OK | MB_ICONINFORMATION);
+    } else {
+        ipaStatus = L"IPA: ошибка проверки";
+        const std::wstring details(info.error.begin(), info.error.end());
+        MessageBoxW(window, details.c_str(), L"IPA Loader", MB_OK | MB_ICONWARNING);
+    }
+    InvalidateRect(window, nullptr, TRUE);
+}
+
 void drawScreen(HDC dc) {
     RECT screen{0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
     HBRUSH background = CreateSolidBrush(RGB(238, 241, 246));
     FillRect(dc, &screen, background);
     DeleteObject(background);
 
-    // Status bar
     HBRUSH status = CreateSolidBrush(RGB(248, 249, 251));
     RECT statusRect{0, 0, SCREEN_WIDTH, 25};
     FillRect(dc, &statusRect, status);
@@ -52,18 +90,17 @@ void drawScreen(HDC dc) {
 
     if (!appOpen) {
         centeredText(dc, L"OldiOS", 44, 32, RGB(35, 40, 48), 21, true);
-        // App icon
-        roundedBox(dc, 120, 135, 200, 215, 17, RGB(35, 92, 180));
-        centeredText(dc, L"i", 137, 68, RGB(255, 255, 255), 48, true);
-        centeredText(dc, L"I Am Rich", 220, 25, RGB(35, 40, 48), 13);
-        centeredText(dc, L"Нажмите на значок приложения", 300, 30,
-                     RGB(90, 98, 110), 12);
+        roundedBox(dc, 120, 125, 200, 205, 17, RGB(35, 92, 180));
+        centeredText(dc, L"i", 127, 68, RGB(255, 255, 255), 48, true);
+        centeredText(dc, L"I Am Rich", 210, 25, RGB(35, 40, 48), 13);
+        centeredText(dc, ipaStatus.c_str(), 340, 35, RGB(75, 85, 100), 10);
+        centeredText(dc, L"Ctrl+O — выбрать IPA-файл", 375, 25,
+                     RGB(90, 98, 110), 10);
     } else {
         centeredText(dc, L"Done", 28, 35, RGB(30, 100, 205), 16);
         centeredText(dc, L"I Am Rich", 82, 34, RGB(30, 35, 45), 22, true);
         centeredText(dc, L"Экран-заглушка приложения", 132, 28,
                      RGB(95, 100, 110), 13);
-        // A simple blue jewel placeholder
         POINT jewel[] = {{160, 205}, {205, 250}, {160, 300}, {115, 250}};
         HBRUSH jewelBrush = CreateSolidBrush(RGB(40, 105, 210));
         HPEN jewelPen = CreatePen(PS_SOLID, 2, RGB(220, 232, 255));
@@ -76,7 +113,6 @@ void drawScreen(HDC dc) {
         DeleteObject(jewelPen);
     }
 
-    // Home button area
     HBRUSH dock = CreateSolidBrush(RGB(220, 225, 233));
     RECT dockRect{0, 440, SCREEN_WIDTH, SCREEN_HEIGHT};
     FillRect(dc, &dockRect, dock);
@@ -86,6 +122,12 @@ void drawScreen(HDC dc) {
 
 LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
     switch (message) {
+    case WM_KEYDOWN:
+        if ((GetKeyState(VK_CONTROL) & 0x8000) && wParam == 'O') {
+            openIpa(window);
+            return 0;
+        }
+        break;
     case WM_PAINT: {
         PAINTSTRUCT paint{};
         HDC dc = BeginPaint(window, &paint);
@@ -96,7 +138,7 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     case WM_LBUTTONDOWN: {
         const int x = GET_X_LPARAM(lParam);
         const int y = GET_Y_LPARAM(lParam);
-        if (!appOpen && x >= 110 && x <= 210 && y >= 125 && y <= 230) {
+        if (!appOpen && x >= 110 && x <= 210 && y >= 115 && y <= 220) {
             appOpen = true;
             InvalidateRect(window, nullptr, TRUE);
         } else if (appOpen && y < 65) {
@@ -105,6 +147,8 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         } else if (y >= 440) {
             appOpen = false;
             InvalidateRect(window, nullptr, TRUE);
+        } else if (!appOpen && y >= 330 && y <= 410) {
+            openIpa(window);
         }
         return 0;
     }
@@ -151,6 +195,7 @@ int WINAPI WinMain(HINSTANCE instance, HINSTANCE, LPSTR, int showCommand) {
 }
 #else
 #include "armv6.hpp"
+#include "ipa_loader.hpp"
 #include <exception>
 #include <iomanip>
 #include <iostream>
@@ -173,7 +218,7 @@ int main() {
                       << cpu.reg(i) << std::dec << '\n';
         }
         std::cout << "CPSR = 0x" << std::hex << cpu.cpsr() << std::dec << '\n';
-        std::cout << "Expected: r2 = 0, r3 = 10, Z flag = 1\n";
+        std::cout << "IPA loader: ZIP archive structure inspection is available.\n";
         return 0;
     } catch (const std::exception& error) {
         std::cerr << "Emulator error: " << error.what() << '\n';
