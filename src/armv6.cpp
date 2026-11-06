@@ -100,7 +100,32 @@ void Armv6::loadImage(const MachOImage& image) {
         std::copy(segment.memory.begin(), segment.memory.end(), memory_.begin() + offset);
     }
     reset();
-    regs_[13] = static_cast<std::uint32_t>(low + memory_.size() - 4);
+
+    // Build a minimal Darwin-style initial stack:
+    // argc = 0, argv[0] = NULL, envp[0] = NULL, apple[0] = NULL.
+    // Keep all four words inside the mapped stack instead of placing SP
+    // at the final word of memory, where startup code cannot walk the
+    // argv/envp/Apple vectors safely.
+    const std::uint64_t stackEnd = low + memory_.size();
+    constexpr std::uint64_t INITIAL_STACK_WORDS = 4;
+    constexpr std::uint64_t INITIAL_STACK_BYTES = INITIAL_STACK_WORDS * 4;
+    if (memory_.size() < INITIAL_STACK_BYTES) {
+        throw std::runtime_error("Mapped memory is too small for the initial process stack.");
+    }
+    const std::uint64_t stackPointer =
+        (stackEnd - INITIAL_STACK_BYTES) & ~std::uint64_t{7};
+    if (stackPointer < low ||
+        stackPointer + INITIAL_STACK_BYTES > stackEnd) {
+        throw std::runtime_error("Initial process stack does not fit in mapped memory.");
+    }
+
+    // The memory was zero-initialized; write the vector terminators
+    // explicitly so the startup layout is documented and deterministic.
+    for (std::uint64_t i = 0; i < INITIAL_STACK_WORDS; ++i) {
+        write32(static_cast<std::uint32_t>(stackPointer + i * 4), 0);
+    }
+
+    regs_[13] = static_cast<std::uint32_t>(stackPointer);
     regs_[15] = image.entryPoint;
 }
 
