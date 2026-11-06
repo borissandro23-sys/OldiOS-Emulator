@@ -240,6 +240,14 @@ bool loadMachOImage(const std::filesystem::path& path, MachOImage& image, std::s
         }
         pos += cmdsize;
     }
+    if (image.dynamicSymbolTable.present) {
+        const auto& ds = image.dynamicSymbolTable;
+        image.dynamicSymbolTable.indirectSymbols.reserve(ds.indirectSymbolCount);
+        for (std::uint32_t i = 0; i < ds.indirectSymbolCount; ++i) {
+            image.dynamicSymbolTable.indirectSymbols.push_back(
+                read32(bytes, std::size_t(ds.indirectSymbolOffset) + std::size_t(i) * 4u, be));
+        }
+    }
     if (image.symbolTable.present) {
         const auto& st = image.symbolTable;
         image.symbols.reserve(st.symbolCount);
