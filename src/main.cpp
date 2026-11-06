@@ -19,6 +19,10 @@ int main() {
         // LDR r3, [r4]
         // SUB r3, r3, #2
         // CMP r3, #10
+        // MOV r8, #1
+        // MOV r9, #3
+        // MOV r10, r8, LSL r9
+        // MOV r11, r10, LSR #1
         const std::vector<std::uint32_t> program = {
             0xE3A00005u,
             0xE3A01007u,
@@ -29,6 +33,10 @@ int main() {
             0xE5943000u,
             0xE2433002u,
             0xE353000Au,
+            0xE3A08001u,
+            0xE3A09003u,
+            0xE1A0A918u,
+            0xE1A0B0AAu,
             0xFFFFFFFFu // demo stop marker (not an ARM instruction)
         };
 
@@ -36,7 +44,7 @@ int main() {
         cpu.run(100);
 
         std::cout << "\nOldiOS-Emulator | ARMv6 interpreter prototype\n";
-        for (unsigned i = 0; i < 8; ++i) {
+        for (unsigned i = 0; i < 12; ++i) {
             std::cout << "r" << i << " = 0x"
                       << std::hex << std::setw(8) << std::setfill('0')
                       << cpu.reg(i) << std::dec << '\n';
