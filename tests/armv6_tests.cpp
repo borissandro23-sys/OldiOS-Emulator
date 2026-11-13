@@ -11,7 +11,7 @@ int failures = 0;
 
 void check(bool condition, const std::string& message) {
     if (!condition) {
-        std::cerr << "FAIL: " << message << '\\n';
+        std::cerr << "FAIL: " << message << '\n';
         ++failures;
     }
 }
@@ -57,9 +57,9 @@ int main() {
     testMultiplyIsRejected();
     testExtraLoadStoreIsRejected();
     if (failures != 0) {
-        std::cerr << failures << " test(s) failed.\\n";
+        std::cerr << failures << " test(s) failed.\n";
         return EXIT_FAILURE;
     }
-    std::cout << "All ARMv6 decoder tests passed.\\n";
+    std::cout << "All ARMv6 decoder tests passed.\n";
     return EXIT_SUCCESS;
 }
