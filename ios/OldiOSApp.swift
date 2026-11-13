@@ -102,15 +102,11 @@ struct ContentView: View {
             }
             .navigationTitle("OldiOS")
             .navigationBarTitleDisplayMode(.inline)
-            // IPA files are ZIP-based archives. Include the explicit IPA type when iOS
-            // can resolve it, plus ZIP and generic data as compatibility fallbacks.
+            // Show all file types. Some iOS 15 document providers do not
+            // advertise .ipa files as ZIP/data, so filtering can hide them.
             .fileImporter(
                 isPresented: $showingPicker,
-                allowedContentTypes: [
-                    UTType(filenameExtension: "ipa", conformingTo: .zip) ?? .data,
-                    .zip,
-                    .data
-                ],
+                allowedContentTypes: [.item],
                 allowsMultipleSelection: false
             ) { result in
                 switch result {
