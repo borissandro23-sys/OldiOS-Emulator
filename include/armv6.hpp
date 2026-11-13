@@ -3,6 +3,7 @@
 #include <array>
 #include <cstddef>
 #include <cstdint>
+#include <string>
 #include <vector>
 
 #include "macho_loader.hpp"
@@ -13,6 +14,15 @@ struct ArmTraceEntry {
     std::array<std::uint32_t, 16> before{};
     std::array<std::uint32_t, 16> after{};
     bool completed = false;
+};
+
+struct ArmRunReport {
+    std::size_t attempted = 0;
+    std::size_t completed = 0;
+    std::size_t faults = 0;
+    bool halted = false;
+    bool stoppedOnFetchFault = false;
+    std::vector<std::string> faultMessages;
 };
 
 class Armv6 {
@@ -28,6 +38,7 @@ public:
     std::uint32_t peek32(std::uint32_t address) const;
     void step();
     void run(std::size_t instructionLimit);
+    ArmRunReport runContinueOnFault(std::size_t instructionLimit);
 
     std::uint32_t reg(std::size_t index) const;
     std::uint32_t cpsr() const;
