@@ -102,7 +102,17 @@ struct ContentView: View {
             }
             .navigationTitle("OldiOS")
             .navigationBarTitleDisplayMode(.inline)
-            .fileImporter(isPresented: $showingPicker, allowedContentTypes: [.data], allowsMultipleSelection: false) { result in
+            // IPA files are ZIP-based archives. Include the explicit IPA type when iOS
+            // can resolve it, plus ZIP and generic data as compatibility fallbacks.
+            .fileImporter(
+                isPresented: $showingPicker,
+                allowedContentTypes: [
+                    UTType(filenameExtension: "ipa", conformingTo: .zip) ?? .data,
+                    .zip,
+                    .data
+                ],
+                allowsMultipleSelection: false
+            ) { result in
                 switch result {
                 case .success(let urls):
                     guard let url = urls.first else { return }
