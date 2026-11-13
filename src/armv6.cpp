@@ -493,6 +493,38 @@ void Armv6::step() {
     }
 }
 
+ArmRunReport Armv6::runContinueOnFault(std::size_t instructionLimit) {
+    ArmRunReport report;
+    while (!halted_ && report.attempted < instructionLimit) {
+        const std::uint32_t pcBefore = regs_[15];
+        try {
+            step();
+            ++report.attempted;
+            ++report.completed;
+        } catch (const std::exception& error) {
+            ++report.attempted;
+            ++report.faults;
+            if (report.faultMessages.size() < 100) {
+                std::ostringstream message;
+                message << "PC=0x" << std::uppercase << std::hex
+                        << std::setw(8) << std::setfill('0') << pcBefore
+                        << ": " << error.what();
+                report.faultMessages.push_back(message.str());
+            }
+            // A fetch fault occurs before step() advances PC. Continuing would
+            // retry the same invalid address forever, so stop safely here.
+            if (regs_[15] == pcBefore) {
+                report.stoppedOnFetchFault = true;
+                break;
+            }
+            // Execution faults happen after PC advances. Keep going with the
+            // next instruction, while preserving the fault in the final report.
+        }
+    }
+    report.halted = halted_;
+    return report;
+}
+
 void Armv6::run(std::size_t instructionLimit) {
     std::size_t executed = 0;
     while (!halted_ && executed < instructionLimit) {
