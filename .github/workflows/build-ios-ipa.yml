@@ -1,0 +1,55 @@
+name: Build iOS IPA for TrollStore
+
+on:
+  push:
+    branches: [main, "feature/**"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-ipa:
+    runs-on: macos-15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build unsigned iOS app
+        run: |
+          xcodebuild \
+            -project OldiOS.xcodeproj \
+            -scheme OldiOS \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package IPA
+        run: |
+          APP_PATH="build/DerivedData/Build/Products/Release-iphoneos/OldiOS.app"
+          test -d "$APP_PATH"
+          mkdir -p package/Payload
+          cp -R "$APP_PATH" package/Payload/
+          cd package
+          /usr/bin/zip -qry ../OldiOS-Emulator-TrollStore.ipa Payload
+          cd ..
+          unzip -l OldiOS-Emulator-TrollStore.ipa
+          test -s OldiOS-Emulator-TrollStore.ipa
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: OldiOS-Emulator-TrollStore-IPA
+          path: OldiOS-Emulator-TrollStore.ipa
+          if-no-files-found: error

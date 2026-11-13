@@ -1,0 +1,35 @@
+name: OldiOS
+options:
+  deploymentTarget:
+    iOS: "15.0"
+  createIntermediateGroups: true
+targets:
+  OldiOS:
+    type: application
+    platform: iOS
+    sources:
+      - path: ios
+      - path: src/armv6.cpp
+      - path: src/ipa_loader.cpp
+      - path: src/macho_loader.cpp
+      - path: third_party/miniz.c
+      - path: third_party/miniz_tdef.c
+      - path: third_party/miniz_tinfl.c
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.borissandro23.oldios-emulator
+        PRODUCT_NAME: OldiOS
+        SWIFT_VERSION: "5.0"
+        SWIFT_OBJC_BRIDGING_HEADER: ios/OldiOS-Bridging-Header.h
+        CLANG_CXX_LANGUAGE_STANDARD: c++17
+        CLANG_CXX_LIBRARY: libc++
+        HEADER_SEARCH_PATHS:
+          - $(SRCROOT)/include
+          - $(SRCROOT)/third_party
+        IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: OldiOS Emulator
+        INFOPLIST_KEY_UIFileSharingEnabled: YES
+        INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace: YES
+        CODE_SIGNING_ALLOWED: NO
