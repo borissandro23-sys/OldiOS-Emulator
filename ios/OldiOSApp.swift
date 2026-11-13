@@ -119,11 +119,22 @@ struct ContentView: View {
         errorText = nil
         report = nil
         let didAccess = url.startAccessingSecurityScopedResource()
-        defer {
+        let stagedURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("ipa")
+        do {
+            try FileManager.default.copyItem(at: url, to: stagedURL)
+        } catch {
             if didAccess { url.stopAccessingSecurityScopedResource() }
+            errorText = "Не удалось скопировать IPA во временную папку: \(error.localizedDescription)"
+            isAnalyzing = false
+            return
         }
+        if didAccess { url.stopAccessingSecurityScopedResource() }
+
         DispatchQueue.global(qos: .userInitiated).async {
-            let result = OldIOSBridge.analyzeIPA(atPath: url.path) as? [String: Any] ?? [:]
+            let result = OldIOSBridge.analyzeIPA(atPath: stagedURL.path) as? [String: Any] ?? [:]
+            try? FileManager.default.removeItem(at: stagedURL)
             DispatchQueue.main.async {
                 self.report = result
                 if result["ok"] as? Bool != true {
