@@ -282,6 +282,15 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
         return;
     }
 
+    // These encodings share the broad 00xxxxxx data-processing class, but
+    // are not data-processing instructions. Reject them explicitly instead
+    // of accidentally interpreting MUL/MLA, BX, or extra load/store as AND,
+    // EOR, or another arithmetic operation.
+    if ((ins & 0x0E000090u) == 0x00000090u) {
+        throw std::runtime_error(
+            "Unsupported ARM multiply, swap, branch-exchange, or extra load/store instruction.");
+    }
+
     // Data-processing instructions. This first version supports immediate
     // operands and unshifted register operands.
     if ((ins & 0x0C000000u) == 0) {

@@ -30,6 +30,16 @@ endif()
 
 target_include_directories(oldios-emu PRIVATE include third_party)
 
+include(CTest)
+if (BUILD_TESTING)
+    add_executable(armv6-tests
+        tests/armv6_tests.cpp
+        src/armv6.cpp
+    )
+    target_include_directories(armv6-tests PRIVATE include)
+    add_test(NAME armv6-tests COMMAND armv6-tests)
+endif()
+
 if (MSVC)
     target_compile_options(oldios-emu PRIVATE /W4)
 else()

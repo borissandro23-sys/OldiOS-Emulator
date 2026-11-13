@@ -25,6 +25,9 @@ jobs:
       - name: Build Release
         run: cmake --build build --config Release
 
+      - name: Run ARMv6 tests
+        run: ctest --test-dir build -C Release --output-on-failure
+
       - name: Upload executable
         uses: actions/upload-artifact@v6
         with:
