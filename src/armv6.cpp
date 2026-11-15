@@ -129,6 +129,10 @@ void Armv6::loadImage(const MachOImage& image) {
     regs_[15] = image.entryPoint;
 }
 
+std::uint16_t Armv6::peek16(std::uint32_t address) const {
+    return read16(address);
+}
+
 std::uint32_t Armv6::peek32(std::uint32_t address) const {
     return read32(address);
 }
