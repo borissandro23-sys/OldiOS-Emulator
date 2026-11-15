@@ -115,17 +115,19 @@ void showArmDebugger(HWND window, Armv6& cpu) {
                 fault << L"R" << std::dec << i << L"=0x" << std::uppercase << std::hex
                       << std::setw(8) << std::setfill(L'0') << cpu.reg(i) << L"  ";
             }
-            fault << L"\n\nRecent ARM instructions (oldest first):";
+            fault << L"\n\nProblematic instructions only:";
             const auto& trace = cpu.recentTrace();
-            const std::size_t first = trace.size() > 10 ? trace.size() - 10 : 0;
-            for (std::size_t i = first; i < trace.size(); ++i) {
-                const auto& item = trace[i];
+            bool foundProblem = false;
+            for (const auto& item : trace) {
+                if (item.completed) continue;
+                foundProblem = true;
                 fault << L"\nPC=0x" << std::uppercase << std::hex
                       << std::setw(8) << std::setfill(L'0') << item.pc
                       << L"  OP=0x" << std::setw(8) << item.instruction
-                      << L"  R3:0x" << std::setw(8) << item.before[3]
-                      << L"->0x" << std::setw(8) << item.after[3]
-                      << (item.completed ? L" OK" : L" FAULT");
+                      << L"  FAULT";
+            }
+            if (!foundProblem) {
+                fault << L"\nThe current instruction is the only recorded problem.";
             }
             fault << L"\n\nThe iOS app has not been fully executed.";
             MessageBoxW(window, fault.str().c_str(), L"ARMv6 exception",
