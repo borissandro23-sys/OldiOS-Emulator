@@ -15,7 +15,7 @@ if (WIN32)
         third_party/miniz_tdef.c
         third_party/miniz_tinfl.c
     )
-    target_link_libraries(oldios-emu PRIVATE user32 gdi32 comdlg32)
+    target_link_libraries(oldios-emu PRIVATE user32 gdi32 ole32 shell32)
 else()
     add_executable(oldios-emu
         src/main.cpp
