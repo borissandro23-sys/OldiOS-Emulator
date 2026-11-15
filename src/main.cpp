@@ -304,6 +304,10 @@ void openIpa(HWND window) {
             L" bytes\n\nSaved to:\n" +
             info.executablePath.wstring() +
             cpuDetails +
+            L"\n\nDynamic libraries referenced: " + std::to_wstring(image.dylibs.size()) +
+            L"\nSymbol table: " + (image.symbolTable.present ? L"present" : L"not present") +
+            L"\nIndirect symbol table: " + (image.indirectSymbols.present ? L"present" : L"not present") +
+            L"\nInstall name: " + (image.installName.empty() ? L"(none)" : utf8ToWide(image.installName)) +
             L"\n\nThe app has NOT been executed.";
         latestReport = details;
         MessageBoxW(window, details.c_str(), L"Mach-O Loader", MB_OK | MB_ICONINFORMATION);
