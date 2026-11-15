@@ -13,13 +13,40 @@
 #include <string>
 #include <sstream>
 #include <stdexcept>
-#include <iomanip>
+#include <iomanip>\n#include <cstring>
 
 namespace {
 constexpr int SCREEN_WIDTH = 320;
 constexpr int SCREEN_HEIGHT = 480;
 bool appOpen = false;
 std::wstring ipaStatus = L"Ctrl+O — открыть IPA";
+std::wstring latestReport = L"Отчёт пока не создан.";
+
+bool copyTextToClipboard(HWND window, const std::wstring& text) {
+    if (!OpenClipboard(window)) return false;
+    EmptyClipboard();
+    const SIZE_T bytes = (text.size() + 1) * sizeof(wchar_t);
+    HGLOBAL memory = GlobalAlloc(GMEM_MOVEABLE, bytes);
+    if (!memory) {
+        CloseClipboard();
+        return false;
+    }
+    void* target = GlobalLock(memory);
+    if (!target) {
+        GlobalFree(memory);
+        CloseClipboard();
+        return false;
+    }
+    memcpy(target, text.c_str(), bytes);
+    GlobalUnlock(memory);
+    if (!SetClipboardData(CF_UNICODETEXT, memory)) {
+        GlobalFree(memory);
+        CloseClipboard();
+        return false;
+    }
+    CloseClipboard();
+    return true;
+}
 
 std::wstring utf8ToWide(const std::string& value) {
     if (value.empty()) return {};
@@ -277,6 +304,7 @@ void openIpa(HWND window) {
             info.executablePath.wstring() +
             cpuDetails +
             L"\n\nThe app has NOT been executed.";
+        latestReport = details;
         MessageBoxW(window, details.c_str(), L"Mach-O Loader", MB_OK | MB_ICONINFORMATION);
         if (cpuDetails.find(L"ARM memory loaded") != std::wstring::npos) {
             Armv6 debuggerCpu;
@@ -364,6 +392,12 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         } else if (appOpen && y < 65) {
             appOpen = false;
             InvalidateRect(window, nullptr, TRUE);
+        } else if (!appOpen && x >= 70 && x <= 250 && y >= 400 && y <= 438) {
+            const bool copied = copyTextToClipboard(window, latestReport);
+            MessageBoxW(window,
+                copied ? L"Отчёт скопирован в буфер обмена."
+                       : L"Не удалось скопировать отчёт.",
+                L"OldiOS — копирование", MB_OK | (copied ? MB_ICONINFORMATION : MB_ICONWARNING));
         } else if (y >= 440) {
             appOpen = false;
             InvalidateRect(window, nullptr, TRUE);
