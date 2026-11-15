@@ -6,7 +6,7 @@
 
 namespace {
 bool expect(bool value, const char* message) {
-    if (!value) std::cerr << "FAIL: " << message << '\\n';
+    if (!value) std::cerr << "FAIL: " << message << '\n';
     return value;
 }
 }
