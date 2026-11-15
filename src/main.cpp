@@ -3,7 +3,7 @@
 #define _UNICODE
 #include <windows.h>
 #include <windowsx.h>
-#include <commdlg.h>
+#include <shobjidl.h>
 
 #include "ipa_loader.hpp"
 #include "macho_loader.hpp"
@@ -138,21 +138,85 @@ void showArmDebugger(HWND window, Armv6& cpu) {
     }
 }
 
-void openIpa(HWND window) {
-    wchar_t fileName[32768]{};
-    OPENFILENAMEW dialog{};
-    dialog.lStructSize = sizeof(dialog);
-    dialog.hwndOwner = window;
-    dialog.lpstrFilter = L"iOS application (*.ipa)\0*.ipa\0All files (*.*)\0*.*\0";
-    dialog.lpstrFile = fileName;
-    dialog.nMaxFile = 32768;
-    dialog.lpstrTitle = L"Select an IPA file";
-    dialog.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR;
+bool chooseIpaFile(HWND window, std::filesystem::path& selectedPath) {
+    const HRESULT initResult = CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+    const bool mustUninitialize = SUCCEEDED(initResult);
+    if (FAILED(initResult) && initResult != RPC_E_CHANGED_MODE) {
+        std::wostringstream message;
+        message << L"Не удалось инициализировать системный диалог выбора файла.\nHRESULT: 0x"
+                << std::hex << static_cast<unsigned long>(initResult);
+        MessageBoxW(window, message.str().c_str(), L"OldiOS — выбор IPA",
+                    MB_OK | MB_ICONERROR);
+        return false;
+    }
 
-    if (!GetOpenFileNameW(&dialog)) return;
+    IFileOpenDialog* dialog = nullptr;
+    HRESULT hr = CoCreateInstance(CLSID_FileOpenDialog, nullptr, CLSCTX_INPROC_SERVER,
+                                  IID_PPV_ARGS(&dialog));
+    if (FAILED(hr)) {
+        if (mustUninitialize) CoUninitialize();
+        std::wostringstream message;
+        message << L"Не удалось открыть системный диалог выбора файла.\nHRESULT: 0x"
+                << std::hex << static_cast<unsigned long>(hr);
+        MessageBoxW(window, message.str().c_str(), L"OldiOS — выбор IPA",
+                    MB_OK | MB_ICONERROR);
+        return false;
+    }
+
+    const COMDLG_FILTERSPEC filters[] = {
+        {L"iOS application packages (*.ipa)", L"*.ipa"},
+        {L"All files (*.*)", L"*.*"}
+    };
+    DWORD options = 0;
+    hr = dialog->GetOptions(&options);
+    if (SUCCEEDED(hr)) {
+        hr = dialog->SetOptions(options | FOS_FORCEFILESYSTEM |
+                                FOS_FILEMUSTEXIST | FOS_PATHMUSTEXIST);
+    }
+    if (SUCCEEDED(hr)) hr = dialog->SetFileTypes(2, filters);
+    if (SUCCEEDED(hr)) hr = dialog->SetFileTypeIndex(1);
+    if (SUCCEEDED(hr)) hr = dialog->SetDefaultExtension(L"ipa");
+    if (SUCCEEDED(hr)) hr = dialog->SetTitle(L"Выберите IPA-файл");
+
+    if (SUCCEEDED(hr)) hr = dialog->Show(window);
+
+    if (hr == HRESULT_FROM_WIN32(ERROR_CANCELLED)) {
+        dialog->Release();
+        if (mustUninitialize) CoUninitialize();
+        return false;
+    }
+
+    IShellItem* item = nullptr;
+    if (SUCCEEDED(hr)) hr = dialog->GetResult(&item);
+    PWSTR filePath = nullptr;
+    if (SUCCEEDED(hr)) hr = item->GetDisplayName(SIGDN_FILESYSPATH, &filePath);
+
+    if (SUCCEEDED(hr) && filePath) {
+        selectedPath = std::filesystem::path(filePath);
+    }
+
+    if (filePath) CoTaskMemFree(filePath);
+    if (item) item->Release();
+    dialog->Release();
+    if (mustUninitialize) CoUninitialize();
+
+    if (FAILED(hr) || selectedPath.empty()) {
+        std::wostringstream message;
+        message << L"Не удалось получить путь выбранного файла.\nHRESULT: 0x"
+                << std::hex << static_cast<unsigned long>(hr);
+        MessageBoxW(window, message.str().c_str(), L"OldiOS — выбор IPA",
+                    MB_OK | MB_ICONERROR);
+        return false;
+    }
+    return true;
+}
+
+void openIpa(HWND window) {
+    std::filesystem::path selectedPath;
+    if (!chooseIpaFile(window, selectedPath)) return;
 
     IpaInfo info;
-    if (loadIpaExecutable(std::filesystem::path(fileName), info)) {
+    if (loadIpaExecutable(selectedPath, info)) {
         ipaStatus = L"IPA: Mach-O загружен";
         MachOImage image;
         std::string machoError;
