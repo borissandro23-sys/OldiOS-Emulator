@@ -167,6 +167,7 @@ void showArmDebugger(HWND window, Armv6& cpu) {
                          L"and stack only; it does not load dyld or the system shared cache.";
             }
             fault << L"\n\nThe iOS app has not been fully executed.";
+            latestReport = fault.str();
             MessageBoxW(window, fault.str().c_str(), L"ARMv6 exception",
                         MB_OK | MB_ICONWARNING);
             return;
@@ -318,6 +319,7 @@ void openIpa(HWND window) {
     } else {
         ipaStatus = L"IPA: ошибка загрузки Mach-O";
         const std::wstring details = utf8ToWide(info.error);
+        latestReport = details;
         MessageBoxW(window, details.c_str(), L"IPA Loader", MB_OK | MB_ICONWARNING);
     }
     InvalidateRect(window, nullptr, TRUE);
@@ -341,8 +343,11 @@ void drawScreen(HDC dc) {
         centeredText(dc, L"i", 127, 68, RGB(255, 255, 255), 48, true);
         centeredText(dc, L"I Am Rich", 210, 25, RGB(35, 40, 48), 13);
         centeredText(dc, ipaStatus.c_str(), 340, 35, RGB(75, 85, 100), 10);
-        centeredText(dc, L"Ctrl+O — выбрать IPA-файл", 375, 25,
+        centeredText(dc, L"Ctrl+O — выбрать IPA-файл", 375, 22,
                      RGB(90, 98, 110), 10);
+        roundedBox(dc, 78, 405, 242, 433, 8, RGB(35, 92, 180));
+        centeredText(dc, L"Скопировать последний отчёт", 406, 26,
+                     RGB(255, 255, 255), 10, true);
     } else {
         centeredText(dc, L"Done", 28, 35, RGB(30, 100, 205), 16);
         centeredText(dc, L"I Am Rich", 82, 34, RGB(30, 35, 45), 22, true);
