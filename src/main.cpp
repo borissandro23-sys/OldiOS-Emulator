@@ -115,19 +115,21 @@ void showArmDebugger(HWND window, Armv6& cpu) {
                 fault << L"R" << std::dec << i << L"=0x" << std::uppercase << std::hex
                       << std::setw(8) << std::setfill(L'0') << cpu.reg(i) << L"  ";
             }
-            fault << L"\n\nProblematic instructions only:";
             const auto& trace = cpu.recentTrace();
-            bool foundProblem = false;
+            fault << L"\n\nRecent instruction history (oldest first):";
+            unsigned shown = 0;
             for (const auto& item : trace) {
-                if (item.completed) continue;
-                foundProblem = true;
+                if (!item.completed) continue;
                 fault << L"\nPC=0x" << std::uppercase << std::hex
                       << std::setw(8) << std::setfill(L'0') << item.pc
                       << L"  OP=0x" << std::setw(8) << item.instruction
-                      << L"  FAULT";
+                      << L"  NEXT_PC=0x" << std::setw(8) << item.after[15];
+                if (++shown == 8) break;
             }
-            if (!foundProblem) {
-                fault << L"\nThe current instruction is the only recorded problem.";
+            if (faultPc >= 0x2FE00000u && faultPc < 0x2FF00000u) {
+                fault << L"\n\nNote: this address is in the legacy 32-bit iOS dyld address area "
+                         L"seen in some ARMv7 layouts. The current emulator maps the app image "
+                         L"and stack only; it does not load dyld or the system shared cache.";
             }
             fault << L"\n\nThe iOS app has not been fully executed.";
             MessageBoxW(window, fault.str().c_str(), L"ARMv6 exception",
