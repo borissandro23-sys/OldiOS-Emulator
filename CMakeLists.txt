@@ -44,4 +44,11 @@ if (BUILD_TESTING)
     )
     target_include_directories(macho-loader-tests PRIVATE include)
     add_test(NAME macho-loader-tests COMMAND macho-loader-tests)
+
+    add_executable(armv6-tests
+        tests/test_armv6.cpp
+        src/armv6.cpp
+    )
+    target_include_directories(armv6-tests PRIVATE include)
+    add_test(NAME armv6-tests COMMAND armv6-tests)
 endif()
