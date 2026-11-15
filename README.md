@@ -18,7 +18,7 @@ Not implemented:
 - Universal/fat Mach-O architecture selection
 - Binary plist parsing (CFBundleExecutable falls back to the .app bundle name)
 - Complete ARMv6/Thumb instruction support
-- Mach-O load-command processing, dynamic linking, relocations, and dyld
+- Loading dependent dylibs, dyld, relocations, and symbol resolution (load-command metadata is now parsed, but dependencies are not loaded or linked yet)
 - Objective-C runtime, Foundation, UIKit, graphics, audio, or touch event services
 - A tested ARMv6 app-bootstrap path: map a synthetic Mach-O image, initialize PC/SP, and execute its first ARM instruction
 - Running a complete iOS application (still not implemented)
@@ -52,7 +52,7 @@ The ZIP deflate implementation is miniz 2.1.0, distributed under its permissive 
 ## Roadmap
 
 1. Validate ARMv6 process bootstrap (mapped segments, entry point, aligned initial stack) with a dedicated test.
-2. Add real-IPA fixtures and robust Mach-O entry-point/load-command handling.
+2. Expand real-IPA fixtures for Mach-O dylib commands, symbol tables, and indirect symbol tables; validate metadata parsing across multiple binaries.
 3. Implement bounded execution with explicit stop reasons and a minimal Darwin syscall boundary.
 4. Add the Objective-C runtime and a small Foundation compatibility layer.
 5. Build the first UIKit compatibility surface needed by the I Am Rich sample.
