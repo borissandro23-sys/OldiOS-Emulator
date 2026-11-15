@@ -115,16 +115,24 @@ void showArmDebugger(HWND window, Armv6& cpu) {
                 fault << L"R" << std::dec << i << L"=0x" << std::uppercase << std::hex
                       << std::setw(8) << std::setfill(L'0') << cpu.reg(i) << L"  ";
             }
+            fault << L"\nR15/PC=0x" << std::uppercase << std::hex
+                  << std::setw(8) << std::setfill(L'0') << faultPc
+                  << L"  CPSR=0x" << std::setw(8) << cpu.cpsr();
             const auto& trace = cpu.recentTrace();
-            fault << L"\n\nRecent instruction history (oldest first):";
-            unsigned shown = 0;
+            fault << L"\n\nMost recent completed instructions (oldest to newest):";
+            std::vector<const ArmTraceEntry*> completed;
             for (const auto& item : trace) {
-                if (!item.completed) continue;
+                if (item.completed) completed.push_back(&item);
+            }
+            const std::size_t first = completed.size() > 8 ? completed.size() - 8 : 0;
+            for (std::size_t i = first; i < completed.size(); ++i) {
+                const auto& item = *completed[i];
                 fault << L"\nPC=0x" << std::uppercase << std::hex
                       << std::setw(8) << std::setfill(L'0') << item.pc
                       << L"  OP=0x" << std::setw(8) << item.instruction
-                      << L"  NEXT_PC=0x" << std::setw(8) << item.after[15];
-                if (++shown == 8) break;
+                      << L"  NEXT_PC=0x" << std::setw(8) << item.after[15]
+                      << L"  R12=0x" << std::setw(8) << item.after[12]
+                      << L"  LR=0x" << std::setw(8) << item.after[14];
             }
             if (faultPc >= 0x2FE00000u && faultPc < 0x2FF00000u) {
                 fault << L"\n\nNote: this address is in the legacy 32-bit iOS dyld address area "
