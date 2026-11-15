@@ -753,6 +753,38 @@ void Armv6::executeThumb(std::uint16_t ins, std::uint32_t address) {
         return;
     }
 
+    // Legacy ARMv6 Thumb long branch (BL), encoded as two 16-bit halves.
+    // H1 (11110): build the high signed offset in LR.
+    if ((ins & 0xF800u) == 0xF000u) {
+        std::int32_t high = static_cast<std::int32_t>(ins & 0x07FFu);
+        if (high & 0x0400) high |= ~0x07FF;
+        regs_[14] = static_cast<std::uint32_t>(
+            static_cast<std::int64_t>(address + 4) +
+            static_cast<std::int64_t>(high) * 4096);
+        return;
+    }
+
+    // H2 (11111): complete BL, branch in Thumb state and form return LR.
+    if ((ins & 0xF800u) == 0xF800u) {
+        const std::uint32_t target = regs_[14] + ((ins & 0x07FFu) << 1);
+        regs_[14] = (address + 2) | 1u;
+        cpsr_ |= (1u << 5);
+        regs_[15] = target & ~1u;
+        return;
+    }
+
+    // H3 (11101, low bit zero): legacy Thumb BLX immediate to ARM state.
+    if ((ins & 0xF800u) == 0xE800u) {
+        if (ins & 1u)
+            throw std::runtime_error("Undefined Thumb BLX second-half encoding.");
+        const std::uint32_t target =
+            (regs_[14] & ~3u) + (((ins >> 1) & 0x03FFu) << 2);
+        regs_[14] = address + 2;
+        cpsr_ &= ~(1u << 5);
+        regs_[15] = target & ~3u;
+        return;
+    }
+
     // Conditional branch; condition 0xE is undefined and 0xF is SWI.
     if ((ins & 0xF000u) == 0xD000u) {
         const unsigned cond = (ins >> 8) & 0xFu;
