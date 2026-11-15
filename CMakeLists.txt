@@ -51,4 +51,11 @@ if (BUILD_TESTING)
     )
     target_include_directories(armv6-tests PRIVATE include)
     add_test(NAME armv6-tests COMMAND armv6-tests)
+
+    add_executable(app-bootstrap-tests
+        tests/test_app_bootstrap.cpp
+        src/armv6.cpp
+    )
+    target_include_directories(app-bootstrap-tests PRIVATE include)
+    add_test(NAME app-bootstrap-tests COMMAND app-bootstrap-tests)
 endif()
