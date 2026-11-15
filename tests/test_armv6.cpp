@@ -39,6 +39,24 @@ int main() {
     ok &= expect(thumb.peek32(0x7Cu) == 16u, "Thumb PUSH must save LR at the top of the stack");
     ok &= expect((thumb.cpsr() & (1u << 5)) != 0, "Thumb execution must remain in Thumb state");
 
+    // Legacy Thumb BL uses two halfwords: H1 builds LR, H2 branches.
+    Armv6 thumbBl;
+    thumbBl.loadProgram({
+        0xE3A0C011u, // MOV R12, #0x11
+        0xE12FFF3Cu, // BLX R12 -> Thumb address 0x10
+        0x00000000u,
+        0x00000000u,
+        0xF801F000u  // H1=F000 at 0x10, H2=F801 at 0x12
+    });
+    thumbBl.step();
+    thumbBl.step();
+    thumbBl.step();
+    ok &= expect(thumbBl.reg(14) == 0x14u, "Thumb BL first half must build the high offset in LR");
+    thumbBl.step();
+    ok &= expect(thumbBl.reg(15) == 0x16u, "Thumb BL second half must branch to the computed target");
+    ok &= expect(thumbBl.reg(14) == 0x15u, "Thumb BL must save the Thumb return address in LR");
+    ok &= expect((thumbBl.cpsr() & (1u << 5)) != 0, "Thumb BL must remain in Thumb state");
+
     // MOV R0, #0x10; BX R0. An even target selects ARM state.
     Armv6 bx;
     bx.loadProgram({0xE3A00010u, 0xE12FFF10u});
