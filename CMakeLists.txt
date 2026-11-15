@@ -35,3 +35,13 @@ if (MSVC)
 else()
     target_compile_options(oldios-emu PRIVATE -Wall -Wextra -Wpedantic)
 endif()
+
+include(CTest)
+if (BUILD_TESTING)
+    add_executable(macho-loader-tests
+        tests/test_macho_loader.cpp
+        src/macho_loader.cpp
+    )
+    target_include_directories(macho-loader-tests PRIVATE include)
+    add_test(NAME macho-loader-tests COMMAND macho-loader-tests)
+endif()
