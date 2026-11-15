@@ -75,8 +75,9 @@ std::wstring armStateText(const Armv6& cpu) {
             << std::setw(8) << std::setfill(L'0') << cpu.reg(i) << L"   ";
     }
     try {
-        out << L"\n\nInstruction @ PC: 0x" << std::setw(8)
-            << cpu.peek32(cpu.reg(15));
+        const bool thumb = (cpu.cpsr() & (1u << 5)) != 0;
+        out << L"\n\nInstruction @ PC: 0x" << std::setw(thumb ? 4 : 8)
+            << (thumb ? cpu.peek16(cpu.reg(15)) : cpu.peek32(cpu.reg(15)));
     } catch (const std::exception&) {
         out << L"\n\nInstruction: address is not mapped";
     }
@@ -94,7 +95,8 @@ void showArmDebugger(HWND window, Armv6& cpu) {
         const std::uint32_t faultPc = cpu.reg(15);
         std::uint32_t faultInstruction = 0;
         try {
-            faultInstruction = cpu.peek32(faultPc);
+            faultInstruction = (cpu.cpsr() & (1u << 5)) != 0
+                ? cpu.peek16(faultPc) : cpu.peek32(faultPc);
         } catch (const std::exception&) {
             // Preserve the PC even if the next instruction is not mapped.
         }
