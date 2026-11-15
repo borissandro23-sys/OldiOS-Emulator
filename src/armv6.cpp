@@ -238,6 +238,24 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
         return;
     }
 
+    // BX / BLX register: switch instruction set according to target bit 0.
+    // This decode must precede the broad data-processing decoder below.
+    const std::uint32_t branchExchange = ins & 0x0FFFFFF0u;
+    if (branchExchange == 0x012FFF10u || branchExchange == 0x012FFF30u) {
+        const unsigned rm = ins & 0xFu;
+        const std::uint32_t target = rm == 15 ? address + 8 : regs_[rm];
+        const bool link = branchExchange == 0x012FFF30u;
+        if (link) regs_[14] = address + 4;
+        if ((target & 1u) != 0) {
+            cpsr_ |= (1u << 5); // CPSR.T: Thumb state
+            regs_[15] = target & ~1u;
+        } else {
+            cpsr_ &= ~(1u << 5);
+            regs_[15] = target & ~3u;
+        }
+        return;
+    }
+
     // B / BL
     if ((ins & 0x0E000000u) == 0x0A000000u) {
         const bool link = (ins & (1u << 24)) != 0;
@@ -471,6 +489,9 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
 void Armv6::step() {
     if (halted_) return;
     const std::uint32_t address = regs_[15];
+    if ((cpsr_ & (1u << 5)) != 0) {
+        throw std::runtime_error("Thumb state selected, but Thumb instruction execution is not implemented yet.");
+    }
     const std::uint32_t instruction = read32(address);
 
     ArmTraceEntry entry;
