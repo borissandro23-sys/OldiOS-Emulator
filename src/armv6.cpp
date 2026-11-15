@@ -297,12 +297,41 @@ void Armv6::execute(std::uint32_t ins, std::uint32_t address) {
         const unsigned rn = (ins >> 16) & 0xF;
         const unsigned rd = (ins >> 12) & 0xF;
 
-        if (registerOffset) {
-            throw std::runtime_error("Register-offset LDR/STR is not implemented yet.");
-        }
-
         const std::uint32_t base = rn == 15 ? address + 8 : regs_[rn];
-        const std::uint32_t offset = ins & 0xFFFu;
+        std::uint32_t offset = ins & 0xFFFu;
+
+        if (registerOffset) {
+            // Register offset uses an immediate shift; bit 4 must be zero.
+            if ((ins & (1u << 4)) != 0)
+                throw std::runtime_error("Invalid register-offset LDR/STR encoding.");
+            const unsigned rm = ins & 0xFu;
+            const std::uint32_t value = rm == 15 ? address + 8 : regs_[rm];
+            const unsigned shiftType = (ins >> 5) & 0x3u;
+            const unsigned amount = (ins >> 7) & 0x1Fu;
+            switch (shiftType) {
+            case 0: // LSL
+                offset = amount == 0 ? value : value << amount;
+                break;
+            case 1: // LSR; zero means 32
+                offset = amount == 0 ? 0u : value >> amount;
+                break;
+            case 2: // ASR; zero means 32
+                if (amount == 0) {
+                    offset = (value & 0x80000000u) ? 0xFFFFFFFFu : 0u;
+                } else {
+                    offset = static_cast<std::uint32_t>(
+                        static_cast<std::int32_t>(value) >> amount);
+                }
+                break;
+            case 3: // ROR; zero means RRX using CPSR.C
+                if (amount == 0) {
+                    offset = ((cpsr_ & FLAG_C) ? 0x80000000u : 0u) | (value >> 1);
+                } else {
+                    offset = (value >> amount) | (value << (32 - amount));
+                }
+                break;
+            }
+        }
         const std::uint32_t adjusted = addOffset ? base + offset : base - offset;
         const std::uint32_t effective = preIndex ? adjusted : base;
 
