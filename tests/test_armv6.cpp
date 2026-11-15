@@ -32,6 +32,6 @@ int main() {
     ok &= expect((bx.cpsr() & (1u << 5)) == 0, "BX even target must select ARM state");
 
     if (!ok) return 1;
-    std::cout << "ARMv6 branch-exchange tests passed.\\n";
+    std::cout << "ARMv6 branch-exchange tests passed.\n";
     return 0;
 }
