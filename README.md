@@ -20,7 +20,8 @@ Not implemented:
 - Complete ARMv6/Thumb instruction support
 - Mach-O load-command processing, dynamic linking, relocations, and dyld
 - Objective-C runtime, Foundation, UIKit, graphics, audio, or touch event services
-- Running an iOS application
+- A tested ARMv6 app-bootstrap path: map a synthetic Mach-O image, initialize PC/SP, and execute its first ARM instruction
+- Running a complete iOS application (still not implemented)
 
 **Important:** Loading a Mach-O file only means extracting it and validating its header. It does not execute the app. The emulator does not yet provide the iOS operating-system environment required by applications.
 
@@ -50,10 +51,10 @@ The ZIP deflate implementation is miniz 2.1.0, distributed under its permissive 
 
 ## Roadmap
 
-1. Add tests using real IPA files and inspect their Mach-O load commands.
-2. Add thin/fat Mach-O parsing and segment loading.
-3. Expand ARMv6 and Thumb execution with unit tests.
-4. Implement a small Mach-O runtime and required system-call stubs.
-5. Research a minimal Objective-C/Foundation/UIKit compatibility layer.
+1. Validate ARMv6 process bootstrap (mapped segments, entry point, aligned initial stack) with a dedicated test.
+2. Add real-IPA fixtures and robust Mach-O entry-point/load-command handling.
+3. Implement bounded execution with explicit stop reasons and a minimal Darwin syscall boundary.
+4. Add the Objective-C runtime and a small Foundation compatibility layer.
+5. Build the first UIKit compatibility surface needed by the I Am Rich sample.
 
 Only use software and firmware images you are legally entitled to use.
