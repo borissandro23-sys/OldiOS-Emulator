@@ -57,6 +57,34 @@ int main() {
     ok &= expect(thumbBl.reg(14) == 0x15u, "Thumb BL must save the Thumb return address in LR");
     ok &= expect((thumbBl.cpsr() & (1u << 5)) != 0, "Thumb BL must remain in Thumb state");
 
+    // ARM register-offset STR/LDR with an unshifted Rm.
+    Armv6 registerOffset;
+    registerOffset.loadProgram({
+        0xE3A01040u, // MOV R1, #0x40
+        0xE3A02004u, // MOV R2, #4
+        0xE3A03055u, // MOV R3, #0x55
+        0xE7813002u, // STR R3, [R1, R2]
+        0xE3A03000u, // MOV R3, #0
+        0xE7913002u  // LDR R3, [R1, R2]
+    });
+    for (int i = 0; i < 6; ++i) registerOffset.step();
+    ok &= expect(registerOffset.reg(3) == 0x55u,
+                 "ARM register-offset LDR must read from base plus Rm");
+    
+    // PC-relative register-offset LDR: base is current instruction address + 8.
+    Armv6 pcRegisterOffset;
+    pcRegisterOffset.loadProgram({
+        0xE3A0C004u, // MOV R12, #4
+        0xE79F300Cu, // LDR R3, [PC, R12] -> address 0x10
+        0xE1A00000u, // NOP
+        0xE1A00000u, // NOP
+        0x12345678u  // data at address 0x10
+    });
+    pcRegisterOffset.step();
+    pcRegisterOffset.step();
+    ok &= expect(pcRegisterOffset.reg(3) == 0x12345678u,
+                 "ARM register-offset LDR must use address+8 when Rn is PC");
+
     // MOV R0, #0x10; BX R0. An even target selects ARM state.
     Armv6 bx;
     bx.loadProgram({0xE3A00010u, 0xE12FFF10u});
