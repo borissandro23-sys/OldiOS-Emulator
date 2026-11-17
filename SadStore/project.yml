@@ -1,0 +1,20 @@
+name: SadStore
+options:
+  bundleIdPrefix: com.borissandro23
+  deploymentTarget:
+    iOS: "15.0"
+targets:
+  SadStore:
+    type: application
+    platform: iOS
+    sources:
+      - path: SadStore
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.borissandro23.sadstore
+        PRODUCT_NAME: SadStore
+        INFOPLIST_KEY_CFBundleDisplayName: SadStore
+        INFOPLIST_KEY_UILaunchScreen_Generation: YES
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
