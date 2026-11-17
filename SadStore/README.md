@@ -2,6 +2,17 @@
 
 A separate SwiftUI iOS app target, kept alongside the OldiOS-Emulator C++ project.
 
+## Prepare the original app icon
+
+Run this from the repository root on macOS:
+
+```sh
+mkdir -p SadStore/SadStore/Assets.xcassets/AppIcon.appiconset
+sips -s format jpeg -Z 1024 fill-the-entire-background.jpg --out SadStore/SadStore/Assets.xcassets/AppIcon.appiconset/AppIcon.jpg
+```
+
+This keeps the repository's original JPG unchanged and creates a 1024px-high app-icon copy. The source image should be square for the icon to have the intended proportions.
+
 ## Build
 
 Requires macOS with Xcode 14 or newer and XcodeGen.
@@ -14,9 +25,5 @@ open SadStore.xcodeproj
 ```
 
 Select the SadStore scheme and build for an iOS 15+ simulator or device.
-
-## App icon
-
-The AppIcon asset uses the original `fill-the-entire-background.jpg` artwork from the repository. The artwork is not replaced. Xcode expects an App Store icon image sized 1024×1024 pixels; if the source JPG has different dimensions, make a square 1024×1024 copy while preserving the original artwork, then keep the filename `AppIcon.jpg`.
 
 The app is a starter UI only; no store/catalog backend is connected yet.
