@@ -1,0 +1,52 @@
+name: Build OldiOS iOS IPA
+
+on:
+  push:
+    paths:
+      - "iOS/**"
+      - ".github/workflows/ios-build.yml"
+  pull_request:
+    paths:
+      - "iOS/**"
+      - ".github/workflows/ios-build.yml"
+  workflow_dispatch:
+
+jobs:
+  build-ios:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: iOS
+        run: xcodegen generate
+
+      - name: Build unsigned iOS app
+        working-directory: iOS
+        run: |
+          xcodebuild \
+            -project OldiOS.xcodeproj \
+            -scheme OldiOS \
+            -sdk iphoneos \
+            -configuration Release \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+
+      - name: Package IPA
+        run: |
+          APP_PATH="iOS/build/Build/Products/Release-iphoneos/OldiOS.app"
+          test -d "$APP_PATH"
+          mkdir -p package/Payload
+          cp -R "$APP_PATH" package/Payload/
+          cd package
+          zip -qry ../OldiOS-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OldiOS-unsigned-IPA
+          path: OldiOS-unsigned.ipa
+          if-no-files-found: error
