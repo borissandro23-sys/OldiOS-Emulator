@@ -19,7 +19,9 @@ namespace {
 constexpr int SCREEN_WIDTH = 320;
 constexpr int SCREEN_HEIGHT = 480;
 bool appOpen = false;
-std::wstring ipaStatus = L"Ctrl+O — открыть IPA";
+std::wstring ipaStatus = L"Ctrl+I — установить IPA";
+std::wstring installedAppName = L"I Am Rich";
+std::filesystem::path installedBundlePath;
 
 std::wstring utf8ToWide(const std::string& value) {
     if (value.empty()) return {};
@@ -295,6 +297,53 @@ void openIpa(HWND window) {
     InvalidateRect(window, nullptr, TRUE);
 }
 
+
+void installIpa(HWND window) {
+    std::filesystem::path selectedPath;
+    if (!chooseIpaFile(window, selectedPath)) return;
+    IpaInfo info;
+    std::filesystem::path installedPath;
+    std::string error;
+    if (!installIpaAppBundle(selectedPath, info, installedPath, error)) {
+        MessageBoxW(window, utf8ToWide(error).c_str(), L"OldiOS — установка IPA",
+                    MB_OK | MB_ICONWARNING);
+        return;
+    }
+    installedBundlePath = installedPath;
+    std::wstring appName = installedPath.stem().wstring();
+    if (!appName.empty()) installedAppName = appName;
+    ipaStatus = L"Установлено: " + installedAppName;
+    const std::wstring message = L"Приложение установлено!\n\n" +
+        installedAppName + L"\n\nПапка:\n" + installedPath.wstring() +
+        L"\n\nИконка добавлена на домашний экран. Запуск настоящего iOS-кода пока не поддерживается.";
+    MessageBoxW(window, message.c_str(), L"OldiOS — установка завершена",
+                MB_OK | MB_ICONINFORMATION);
+    InvalidateRect(window, nullptr, TRUE);
+}
+
+void uninstallIpa(HWND window) {
+    if (installedBundlePath.empty() || !std::filesystem::exists(installedBundlePath)) {
+        MessageBoxW(window, L"Нет приложения, установленного в этой сессии.",
+                    L"OldiOS — удаление", MB_OK | MB_ICONINFORMATION);
+        return;
+    }
+    const int answer = MessageBoxW(window,
+        L"Удалить установленное приложение из папки Applications?",
+        L"OldiOS — удаление приложения", MB_YESNO | MB_ICONQUESTION);
+    if (answer != IDYES) return;
+    std::error_code ec;
+    std::filesystem::remove_all(installedBundlePath, ec);
+    if (ec) {
+        MessageBoxW(window, ec.message().c_str(), L"Не удалось удалить приложение",
+                    MB_OK | MB_ICONERROR);
+        return;
+    }
+    installedBundlePath.clear();
+    installedAppName = L"I Am Rich";
+    ipaStatus = L"Приложение удалено";
+    InvalidateRect(window, nullptr, TRUE);
+}
+
 void drawScreen(HDC dc) {
     RECT screen{0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
     HBRUSH background = CreateSolidBrush(RGB(238, 241, 246));
@@ -311,7 +360,7 @@ void drawScreen(HDC dc) {
         centeredText(dc, L"OldiOS", 44, 32, RGB(35, 40, 48), 21, true);
         roundedBox(dc, 120, 125, 200, 205, 17, RGB(35, 92, 180));
         centeredText(dc, L"i", 127, 68, RGB(255, 255, 255), 48, true);
-        centeredText(dc, L"I Am Rich", 210, 25, RGB(35, 40, 48), 13);
+        centeredText(dc, installedAppName.c_str(), 210, 25, RGB(35, 40, 48), 13);
         centeredText(dc, ipaStatus.c_str(), 340, 35, RGB(75, 85, 100), 10);
         centeredText(dc, L"Ctrl+O — выбрать IPA-файл", 375, 25,
                      RGB(90, 98, 110), 10);
