@@ -20,3 +20,10 @@ struct IpaInfo {
 // Extracts the app's main executable to a safe temporary directory and
 // validates its 32-bit Mach-O header. It does not execute the application.
 bool loadIpaExecutable(const std::filesystem::path& filePath, IpaInfo& result);
+
+// Installs the complete Payload/<App>.app bundle into ./Applications.
+// The bundle is extracted safely; this does not make iOS APIs executable.
+bool installIpaAppBundle(const std::filesystem::path& filePath,
+                         IpaInfo& result,
+                         std::filesystem::path& installedPath,
+                         std::string& error);
