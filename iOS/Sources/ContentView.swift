@@ -105,8 +105,7 @@ final class AppLibrary: ObservableObject {
                     throw ImportError.unsafeArchivePath
                 }
 
-                let outputURL = destination.appendingPathComponent(relativePath)
-                    .standardizedFileURL
+                let outputURL = destination.appendingPathComponent(relativePath).standardizedFileURL
                 let rootPath = destination.standardizedFileURL.path + "/"
                 guard outputURL.path.hasPrefix(rootPath) else {
                     throw ImportError.unsafeArchivePath
@@ -176,61 +175,40 @@ struct ContentView: View {
         NavigationView {
             List {
                 Section {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack(spacing: 12) {
-                            Image(systemName: "cube.transparent")
-                                .font(.system(size: 34, weight: .medium))
-                                .foregroundColor(.blue)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text("OldiOS Emulator")
-                                    .font(.title2.bold())
-                                Text("ARMv6 · ARMv7 · IPA Library")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        }
-                        Text("Импортируйте старые iOS-приложения в отдельную библиотеку.")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(.vertical, 8)
-                }
-
-                Section("Библиотека · \(library.apps.count)") {
                     if library.apps.isEmpty {
-                        VStack(spacing: 10) {
+                        VStack(spacing: 12) {
                             Image(systemName: "square.stack.3d.up")
-                                .font(.system(size: 34))
+                                .font(.system(size: 42, weight: .light))
                                 .foregroundColor(.secondary)
-                            Text("Пока пусто").font(.headline)
-                            Text("Нажмите «Добавить IPA», чтобы импортировать приложение.")
-                                .font(.footnote)
+                            Text("Нет приложений")
+                                .font(.headline)
+                            Text("Импортированные IPA появятся здесь.")
+                                .font(.subheadline)
                                 .foregroundColor(.secondary)
                                 .multilineTextAlignment(.center)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 22)
+                        .padding(.vertical, 30)
                         .listRowBackground(Color.clear)
                     } else {
                         ForEach(library.apps) { app in
-                            HStack(spacing: 12) {
-                                Image(systemName: "app.fill")
-                                    .font(.system(size: 28))
-                                    .foregroundColor(.blue)
-                                    .frame(width: 42, height: 42)
-                                    .background(Color.blue.opacity(0.10))
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                            HStack(spacing: 13) {
+                                AppIconView(app: app)
                                 VStack(alignment: .leading, spacing: 4) {
-                                    Text(app.name).font(.headline)
+                                    Text(app.name)
+                                        .font(.body)
+                                        .foregroundColor(.primary)
                                     Text(app.bundleIdentifier)
                                         .font(.caption)
                                         .foregroundColor(.secondary)
                                         .lineLimit(1)
                                 }
-                                Spacer()
+                                Spacer(minLength: 4)
                                 Image(systemName: "checkmark.circle.fill")
+                                    .font(.system(size: 17))
                                     .foregroundColor(.green)
                             }
+                            .padding(.vertical, 4)
                             .swipeActions {
                                 Button(role: .destructive) {
                                     appToDelete = app
@@ -240,42 +218,50 @@ struct ContentView: View {
                             }
                         }
                     }
+                } header: {
+                    HStack {
+                        Text("Приложения")
+                        Spacer()
+                        Text("\(library.apps.count)")
+                            .foregroundColor(.secondary)
+                    }
                 }
 
                 Section {
                     Button {
                         showingImporter = true
                     } label: {
-                        Label("Добавить IPA", systemImage: "plus.app.fill")
-                            .frame(maxWidth: .infinity, alignment: .center)
+                        Label("Установить IPA", systemImage: "square.and.arrow.down")
                     }
-                    .font(.headline)
-                }
-
-                Section("Статус") {
-                    Text(library.status)
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
+                    .foregroundColor(.blue)
+                } footer: {
+                    Text("IPA добавляется только в библиотеку OldiOS. Это не устанавливает приложение в iOS и пока не позволяет запускать его.")
                 }
 
                 Section {
-                    Label("Импорт IPA не устанавливает приложение в iOS и не запускает его.", systemImage: "info.circle")
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
-                    Text("Это первая версия библиотеки. Для запуска старых приложений ещё нужен ARM-эмулятор и реализация системных API iOS.")
-                        .font(.footnote)
-                        .foregroundColor(.secondary)
+                    HStack(spacing: 8) {
+                        Image(systemName: "info.circle")
+                            .foregroundColor(.secondary)
+                        Text(library.status)
+                            .font(.footnote)
+                            .foregroundColor(.secondary)
+                    }
+                } header: {
+                    Text("Состояние")
                 }
             }
+            .listStyle(.insetGrouped)
             .navigationTitle("OldiOS")
+            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         showingImporter = true
                     } label: {
                         Image(systemName: "plus")
+                            .font(.system(size: 17, weight: .semibold))
                     }
-                    .accessibilityLabel("Добавить IPA")
+                    .accessibilityLabel("Импортировать IPA")
                 }
             }
             .fileImporter(
@@ -308,5 +294,40 @@ struct ContentView: View {
             }
         }
         .navigationViewStyle(.stack)
+    }
+}
+
+struct AppIconView: View {
+    let app: InstalledApp
+
+    var body: some View {
+        Group {
+            if let icon = loadIcon() {
+                Image(uiImage: icon)
+                    .resizable()
+                    .scaledToFit()
+            } else {
+                Image(systemName: "app.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .padding(10)
+                    .foregroundColor(.blue)
+                    .background(Color.blue.opacity(0.12))
+            }
+        }
+        .frame(width: 42, height: 42)
+        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+    }
+
+    private func loadIcon() -> UIImage? {
+        guard let data = try? Data(contentsOf: app.folderURL.appendingPathComponent("Info.plist")),
+              let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
+              let icons = plist["CFBundleIcons"] as? [String: Any],
+              let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
+              let files = primary["CFBundleIconFiles"] as? [String],
+              let iconName = files.last else { return nil }
+
+        let iconURL = app.folderURL.appendingPathComponent(iconName)
+        return UIImage(contentsOfFile: iconURL.path)
     }
 }
