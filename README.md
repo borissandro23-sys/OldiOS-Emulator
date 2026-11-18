@@ -1,6 +1,6 @@
 # OldiOS-Emulator
 
-An educational iOS-era executable loading and ARM emulation project. The current milestone can extract and inspect a 32-bit ARM Mach-O executable from an IPA archive. It is **not yet capable of running iOS applications**.
+An educational iOS-era app bundle installer, executable loader, and ARM emulation prototype. It can install a 32-bit ARM app bundle from an IPA into a local `Applications` folder and inspect its Mach-O executable. It is **not yet capable of running iOS applications**.
 
 ## Current status
 
@@ -9,6 +9,9 @@ Implemented:
 - Win32 iPhone-like 320x480 shell
 - IPA ZIP central-directory parsing
 - ZIP stored and deflate decompression (vendored miniz 2.1.0)
+- Safe extraction of the complete `Payload/<App>.app` bundle into `./Applications` (Ctrl+I)
+- Basic home-screen label for the installed bundle
+- Removal of the app installed during the current emulator session (Ctrl+U)
 - Safe extraction of the app's main executable into the system temporary directory
 - ZIP CRC validation
 - 32-bit little-/big-endian Mach-O header validation for ARM executables
@@ -20,6 +23,7 @@ Not implemented:
 - Complete ARMv6/Thumb instruction support
 - Mach-O load-command processing, dynamic linking, relocations, and dyld
 - Objective-C runtime, Foundation, UIKit, graphics, audio, or touch event services
+- Persistent installed-app catalog and full home-screen icon rendering
 - Running an iOS application
 
 **Important:** Loading a Mach-O file only means extracting it and validating its header. It does not execute the app. The emulator does not yet provide the iOS operating-system environment required by applications.
@@ -42,7 +46,12 @@ cmake --build build --config Release
 .\build\Release\oldios-emu.exe
 ```
 
-Choose an IPA with Ctrl+O. The loader extracts the main executable to the operating system's temporary directory and checks its Mach-O header. It does not launch the application.
+Controls:
+- `Ctrl+I` — choose an IPA and install its complete `.app` bundle into `./Applications`.
+- `Ctrl+U` — remove the app installed during the current emulator session.
+- `Ctrl+O` — inspect the IPA executable and open the ARM debugger.
+
+The home screen currently shows a generic placeholder tile and the installed bundle name; it does not yet read or display the app's real icon. Installing copies the app bundle but does not launch it. The current uninstaller tracks the app installed in the current session only.
 
 ## Third-party code
 
