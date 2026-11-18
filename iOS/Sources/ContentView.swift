@@ -198,11 +198,19 @@ struct ContentView: View {
 
                 Section("Библиотека · \(library.apps.count)") {
                     if library.apps.isEmpty {
-                        ContentUnavailableView(
-                            "Пока пусто",
-                            systemImage: "square.stack.3d.up",
-                            description: Text("Нажмите «Добавить IPA», чтобы импортировать приложение.")
-                        )
+                        VStack(spacing: 10) {
+                            Image(systemName: "square.stack.3d.up")
+                                .font(.system(size: 34))
+                                .foregroundColor(.secondary)
+                            Text("Пока пусто").font(.headline)
+                            Text("Нажмите «Добавить IPA», чтобы импортировать приложение.")
+                                .font(.footnote)
+                                .foregroundColor(.secondary)
+                                .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 22)
+                        .listRowBackground(Color.clear)
                     } else {
                         ForEach(library.apps) { app in
                             HStack(spacing: 12) {
