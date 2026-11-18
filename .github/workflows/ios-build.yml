@@ -23,10 +23,10 @@ jobs:
       - name: Prepare app icon
         run: |
           mkdir -p iOS/Resources/Assets.xcassets/AppIcon.appiconset
-          curl -L --fail --silent --show-error \\
-            https://raw.githubusercontent.com/borissandro23-sys/OldiOS-Emulator/main/fill-the-entire-background.jpg \\
+          curl -L --fail --silent --show-error \
+            https://raw.githubusercontent.com/borissandro23-sys/OldiOS-Emulator/main/fill-the-entire-background.jpg \
             -o /tmp/oldios-icon.jpg
-          sips -s format png -z 1024 1024 /tmp/oldios-icon.jpg \\
+          sips -s format png -z 1024 1024 /tmp/oldios-icon.jpg \
             --out iOS/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
 
       - name: Generate Xcode project
