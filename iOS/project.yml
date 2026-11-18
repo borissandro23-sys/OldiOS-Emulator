@@ -1,0 +1,28 @@
+name: OldiOS
+options:
+  bundleIdPrefix: com.borissandro23
+  deploymentTarget:
+    iOS: "15.0"
+packages:
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation
+    from: 0.9.19
+targets:
+  OldiOS:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.borissandro23.oldios
+        PRODUCT_NAME: OldiOS
+        SWIFT_VERSION: "5.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: OldiOS
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+        IPHONEOS_DEPLOYMENT_TARGET: "15.0"
+    dependencies:
+      - package: ZIPFoundation
+        product: ZIPFoundation
