@@ -362,7 +362,9 @@ void drawScreen(HDC dc) {
         centeredText(dc, L"i", 127, 68, RGB(255, 255, 255), 48, true);
         centeredText(dc, installedAppName.c_str(), 210, 25, RGB(35, 40, 48), 13);
         centeredText(dc, ipaStatus.c_str(), 340, 35, RGB(75, 85, 100), 10);
-        centeredText(dc, L"Ctrl+O — выбрать IPA-файл", 375, 25,
+        centeredText(dc, L"Ctrl+I — установить IPA", 365, 20,
+                     RGB(90, 98, 110), 10);
+        centeredText(dc, L"Ctrl+U — удалить приложение", 385, 20,
                      RGB(90, 98, 110), 10);
     } else {
         centeredText(dc, L"Done", 28, 35, RGB(30, 100, 205), 16);
@@ -395,6 +397,14 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
             openIpa(window);
             return 0;
         }
+        if ((GetKeyState(VK_CONTROL) & 0x8000) && wParam == 'I') {
+            installIpa(window);
+            return 0;
+        }
+        if ((GetKeyState(VK_CONTROL) & 0x8000) && wParam == 'U') {
+            uninstallIpa(window);
+            return 0;
+        }
         // Forward all other key messages to the default window procedure.
         return DefWindowProcW(window, message, wParam, lParam);
     case WM_PAINT: {
@@ -416,8 +426,8 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
         } else if (y >= 440) {
             appOpen = false;
             InvalidateRect(window, nullptr, TRUE);
-        } else if (!appOpen && y >= 330 && y <= 410) {
-            openIpa(window);
+        } else if (!appOpen && y >= 350 && y <= 410) {
+            installIpa(window);
         }
         return 0;
     }
