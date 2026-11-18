@@ -350,3 +350,158 @@ bool loadIpaExecutable(const std::filesystem::path& filePath, IpaInfo& result) {
     result.valid = true;
     return true;
 }
+
+
+bool installIpaAppBundle(const std::filesystem::path& filePath,
+                         IpaInfo& result,
+                         std::filesystem::path& installedPath,
+                         std::string& error) {
+    installedPath.clear();
+    error.clear();
+    if (!loadIpaExecutable(filePath, result)) {
+        error = result.error;
+        return false;
+    }
+
+    std::ifstream input(filePath, std::ios::binary);
+    if (!input) { error = "Cannot reopen the IPA file."; return false; }
+    input.seekg(0, std::ios::end);
+    const std::streamoff length = input.tellg();
+    if (length < 22 || static_cast<std::uint64_t>(length) > MAX_IPA_SIZE) {
+        error = "IPA size is invalid."; return false;
+    }
+    input.seekg(0, std::ios::beg);
+    std::vector<std::uint8_t> archive(static_cast<std::size_t>(length));
+    if (!input.read(reinterpret_cast<char*>(archive.data()), length)) {
+        error = "Could not read the IPA file."; return false;
+    }
+
+    const std::size_t searchStart = archive.size() > 65557 ? archive.size() - 65557 : 0;
+    std::size_t eocd = archive.size();
+    for (std::size_t pos = archive.size() - 22;; --pos) {
+        if (read32(archive, pos) == ZIP_EOCD) { eocd = pos; break; }
+        if (pos == searchStart) break;
+    }
+    if (eocd == archive.size()) { error = "ZIP directory was not found."; return false; }
+    const auto count = read16(archive, eocd + 10);
+    const auto centralSize = read32(archive, eocd + 12);
+    const auto centralOffset = read32(archive, eocd + 16);
+    if (read16(archive, eocd + 4) != 0 || read16(archive, eocd + 6) != 0 ||
+        read16(archive, eocd + 8) != count || count == 0xffffu ||
+        centralOffset == 0xffffffffu || centralSize == 0xffffffffu ||
+        static_cast<std::uint64_t>(centralOffset) + centralSize > archive.size()) {
+        error = "Unsupported or invalid ZIP directory."; return false;
+    }
+
+    std::vector<ZipEntry> entries;
+    std::size_t cursor = centralOffset;
+    const std::size_t centralEnd = static_cast<std::size_t>(centralOffset) + centralSize;
+    for (std::uint32_t i = 0; i < count; ++i) {
+        if (cursor > centralEnd || centralEnd - cursor < 46 ||
+            read32(archive, cursor) != ZIP_CENTRAL) {
+            error = "The ZIP central directory is damaged."; return false;
+        }
+        ZipEntry e;
+        e.flags = read16(archive, cursor + 8);
+        e.method = read16(archive, cursor + 10);
+        e.crc = read32(archive, cursor + 16);
+        e.compressedSize = read32(archive, cursor + 20);
+        e.uncompressedSize = read32(archive, cursor + 24);
+        const auto nameLength = read16(archive, cursor + 28);
+        const auto extraLength = read16(archive, cursor + 30);
+        const auto commentLength = read16(archive, cursor + 32);
+        if (read16(archive, cursor + 34) != 0 ||
+            e.compressedSize == 0xffffffffu || e.uncompressedSize == 0xffffffffu ||
+            read32(archive, cursor + 42) == 0xffffffffu) {
+            error = "ZIP64 or multi-disk entries are not supported."; return false;
+        }
+        const std::size_t recordLength = 46u + nameLength + extraLength + commentLength;
+        if (recordLength > centralEnd - cursor) {
+            error = "Invalid ZIP entry length."; return false;
+        }
+        e.localHeaderOffset = read32(archive, cursor + 42);
+        e.name.assign(reinterpret_cast<const char*>(archive.data() + cursor + 46), nameLength);
+        std::replace(e.name.begin(), e.name.end(), '\\\\', '/');
+        if (e.name.rfind(result.appBundlePath + "/", 0) == 0 ||
+            e.name == result.appBundlePath || e.name == result.appBundlePath + "/") {
+            entries.push_back(std::move(e));
+        }
+        cursor += recordLength;
+    }
+    if (entries.empty()) { error = "No files from Payload/<App>.app were found."; return false; }
+
+    const auto bundleName = std::filesystem::path(result.appBundlePath).filename().string();
+    if (!safeFileName(bundleName) || bundleName.size() <= 4 ||
+        bundleName.substr(bundleName.size() - 4) != ".app") {
+        error = "The app bundle has an unsafe name."; return false;
+    }
+    std::error_code ec;
+    const auto root = std::filesystem::current_path(ec) / "Applications";
+    if (ec) { error = "Could not locate the emulator folder."; return false; }
+    std::filesystem::create_directories(root, ec);
+    if (ec) { error = "Could not create Applications folder: " + ec.message(); return false; }
+    const auto destination = root / bundleName;
+    if (std::filesystem::exists(destination, ec)) {
+        error = "This app is already installed. Remove its folder from Applications before reinstalling.";
+        return false;
+    }
+    const auto staging = root / (bundleName + ".installing");
+    std::filesystem::remove_all(staging, ec);
+    ec.clear();
+    std::filesystem::create_directories(staging, ec);
+    if (ec) { error = "Could not create temporary installation folder: " + ec.message(); return false; }
+
+    std::uint64_t totalExtracted = 0;
+    for (const auto& entry : entries) {
+        const std::string prefix = result.appBundlePath + "/";
+        if (entry.name == result.appBundlePath) continue;
+        if (entry.name.rfind(prefix, 0) != 0) { error = "Unsafe archive path."; break; }
+        const std::string relative = entry.name.substr(prefix.size());
+        if (relative.empty()) continue;
+        std::filesystem::path relativePath;
+        std::size_t start = 0;
+        bool unsafe = false;
+        while (start <= relative.size()) {
+            const auto slash = relative.find('/', start);
+            const auto part = relative.substr(start, slash == std::string::npos ? std::string::npos : slash - start);
+            if (part == ".." || part == "." || part.empty() ||
+                part.find(':') != std::string::npos) { unsafe = true; break; }
+            relativePath /= std::filesystem::u8path(part);
+            if (slash == std::string::npos) break;
+            start = slash + 1;
+        }
+        if (unsafe || relativePath.is_absolute()) { error = "Unsafe path inside IPA bundle."; break; }
+        const auto target = staging / relativePath;
+        if (entry.name.back() == '/') {
+            std::filesystem::create_directories(target, ec);
+        } else {
+            totalExtracted += entry.uncompressedSize;
+            if (entry.uncompressedSize > MAX_EXECUTABLE_SIZE ||
+                totalExtracted > MAX_IPA_SIZE) { error = "App bundle exceeds the extraction size limit."; break; }
+            std::vector<std::uint8_t> bytes;
+            if (!extractEntry(archive, entry, bytes, error)) break;
+            std::filesystem::create_directories(target.parent_path(), ec);
+            if (!ec) {
+                std::ofstream output(target, std::ios::binary | std::ios::trunc);
+                if (!output || !output.write(reinterpret_cast<const char*>(bytes.data()),
+                    static_cast<std::streamsize>(bytes.size()))) {
+                    error = "Could not write installed app file: " + relative;
+                    break;
+                }
+            }
+        }
+        if (ec) { error = "Could not create app folder: " + ec.message(); break; }
+    }
+    if (!error.empty()) {
+        std::filesystem::remove_all(staging, ec);
+        return false;
+    }
+    std::filesystem::rename(staging, destination, ec);
+    if (ec) {
+        std::filesystem::remove_all(staging, ec);
+        error = "Could not finish installation: " + ec.message();
+        return false;
+    }
+    installedPath = destination;
+    return true;
+}
