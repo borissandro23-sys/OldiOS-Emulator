@@ -421,7 +421,7 @@ bool installIpaAppBundle(const std::filesystem::path& filePath,
         }
         e.localHeaderOffset = read32(archive, cursor + 42);
         e.name.assign(reinterpret_cast<const char*>(archive.data() + cursor + 46), nameLength);
-        std::replace(e.name.begin(), e.name.end(), '\\\\', '/');
+        std::replace(e.name.begin(), e.name.end(), '\\', '/');
         if (e.name.rfind(result.appBundlePath + "/", 0) == 0 ||
             e.name == result.appBundlePath || e.name == result.appBundlePath + "/") {
             entries.push_back(std::move(e));
