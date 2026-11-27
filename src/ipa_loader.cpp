@@ -461,7 +461,7 @@ bool installIpaAppBundle(const std::filesystem::path& filePath,
         std::filesystem::path relativePath;
         std::size_t start = 0;
         bool unsafe = false;
-        while (start <= relative.size()) {
+        while (start < relative.size()) {
             const auto slash = relative.find('/', start);
             const auto part = relative.substr(start, slash == std::string::npos ? std::string::npos : slash - start);
             if (part == ".." || part == "." || part.empty() ||
