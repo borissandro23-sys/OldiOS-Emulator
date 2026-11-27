@@ -14,11 +14,12 @@
 #include <sstream>
 #include <stdexcept>
 #include <iomanip>
+#include <vector>
+#include <algorithm>
 
 namespace {
 constexpr int SCREEN_WIDTH = 320;
 constexpr int SCREEN_HEIGHT = 480;
-bool appOpen = false;
 std::wstring ipaStatus = L"Ctrl+I — установить IPA";
 std::wstring installedAppName = L"I Am Rich";
 std::filesystem::path installedBundlePath;
@@ -344,9 +345,66 @@ void uninstallIpa(HWND window) {
     InvalidateRect(window, nullptr, TRUE);
 }
 
+struct HomeApp {
+    std::wstring name;
+    std::filesystem::path bundlePath;
+};
+
+std::vector<HomeApp> getHomeApps() {
+    std::vector<HomeApp> apps;
+    std::error_code ec;
+    const auto root = std::filesystem::current_path(ec) / "Applications";
+    if (!ec && std::filesystem::exists(root, ec)) {
+        for (std::filesystem::directory_iterator it(root, ec), finish;
+             !ec && it != finish; it.increment(ec)) {
+            if (!it->is_directory(ec)) continue;
+            const auto filename = it->path().filename().wstring();
+            if (filename.size() > 4 &&
+                filename.substr(filename.size() - 4) == L".app") {
+                apps.push_back({filename.substr(0, filename.size() - 4), it->path()});
+            }
+        }
+    }
+    std::sort(apps.begin(), apps.end(), [](const HomeApp& a, const HomeApp& b) {
+        return a.name < b.name;
+    });
+    return apps;
+}
+
+void drawAppIcon(HDC dc, int x, int y, const std::wstring& name, unsigned index) {
+    const COLORREF colors[] = {
+        RGB(55, 120, 210), RGB(45, 160, 130), RGB(150, 95, 190),
+        RGB(220, 135, 55), RGB(65, 145, 175), RGB(190, 85, 105)
+    };
+    roundedBox(dc, x, y, x + 48, y + 48, 11,
+               colors[index % (sizeof(colors) / sizeof(colors[0]))]);
+    const wchar_t letter[] = { name.empty() ? L'A' : name.front(), L'\0' };
+    RECT iconRect{x, y + 1, x + 48, y + 47};
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, RGB(255, 255, 255));
+    HFONT font = CreateFontW(-27, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Segoe UI");
+    HFONT oldFont = static_cast<HFONT>(SelectObject(dc, font));
+    DrawTextW(dc, letter, -1, &iconRect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
+    SelectObject(dc, oldFont);
+    DeleteObject(font);
+
+    RECT labelRect{x - 10, y + 51, x + 58, y + 72};
+    SetTextColor(dc, RGB(35, 40, 48));
+    HFONT labelFont = CreateFontW(-10, 0, 0, 0, FW_NORMAL, FALSE, FALSE, FALSE,
+        DEFAULT_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS,
+        CLEARTYPE_QUALITY, DEFAULT_PITCH, L"Segoe UI");
+    oldFont = static_cast<HFONT>(SelectObject(dc, labelFont));
+    DrawTextW(dc, name.c_str(), -1, &labelRect,
+              DT_CENTER | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+    SelectObject(dc, oldFont);
+    DeleteObject(labelFont);
+}
+
 void drawScreen(HDC dc) {
     RECT screen{0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
-    HBRUSH background = CreateSolidBrush(RGB(238, 241, 246));
+    HBRUSH background = CreateSolidBrush(RGB(222, 232, 246));
     FillRect(dc, &screen, background);
     DeleteObject(background);
 
@@ -355,39 +413,42 @@ void drawScreen(HDC dc) {
     FillRect(dc, &statusRect, status);
     DeleteObject(status);
     centeredText(dc, L"9:41", 1, 22, RGB(25, 28, 32), 13, true);
+    centeredText(dc, L"OldiOS", 31, 34, RGB(35, 40, 48), 21, true);
 
-    if (!appOpen) {
-        centeredText(dc, L"OldiOS", 44, 32, RGB(35, 40, 48), 21, true);
-        roundedBox(dc, 120, 125, 200, 205, 17, RGB(35, 92, 180));
-        centeredText(dc, L"i", 127, 68, RGB(255, 255, 255), 48, true);
-        centeredText(dc, installedAppName.c_str(), 210, 25, RGB(35, 40, 48), 13);
-        centeredText(dc, ipaStatus.c_str(), 340, 35, RGB(75, 85, 100), 10);
-        centeredText(dc, L"Ctrl+I — установить IPA", 365, 20,
-                     RGB(90, 98, 110), 10);
-        centeredText(dc, L"Ctrl+U — удалить приложение", 385, 20,
-                     RGB(90, 98, 110), 10);
+    const auto apps = getHomeApps();
+    if (apps.empty()) {
+        drawAppIcon(dc, 136, 105, L"Пример", 0);
+        centeredText(dc, L"Здесь появятся установленные IPA", 190, 30,
+                     RGB(55, 65, 80), 11);
+        centeredText(dc, L"Пока показана иконка-пример", 214, 24,
+                     RGB(75, 85, 100), 10);
     } else {
-        centeredText(dc, L"Done", 28, 35, RGB(30, 100, 205), 16);
-        centeredText(dc, L"I Am Rich", 82, 34, RGB(30, 35, 45), 22, true);
-        centeredText(dc, L"Экран-заглушка приложения", 132, 28,
-                     RGB(95, 100, 110), 13);
-        POINT jewel[] = {{160, 205}, {205, 250}, {160, 300}, {115, 250}};
-        HBRUSH jewelBrush = CreateSolidBrush(RGB(40, 105, 210));
-        HPEN jewelPen = CreatePen(PS_SOLID, 2, RGB(220, 232, 255));
-        HBRUSH oldBrush = static_cast<HBRUSH>(SelectObject(dc, jewelBrush));
-        HPEN oldPen = static_cast<HPEN>(SelectObject(dc, jewelPen));
-        Polygon(dc, jewel, 4);
-        SelectObject(dc, oldBrush);
-        SelectObject(dc, oldPen);
-        DeleteObject(jewelBrush);
-        DeleteObject(jewelPen);
+        constexpr int columns = 4;
+        for (std::size_t i = 0; i < apps.size() && i < 16; ++i) {
+            const int column = static_cast<int>(i % columns);
+            const int row = static_cast<int>(i / columns);
+            drawAppIcon(dc, 20 + column * 76, 88 + row * 91,
+                        apps[i].name, static_cast<unsigned>(i));
+        }
     }
 
-    HBRUSH dock = CreateSolidBrush(RGB(220, 225, 233));
-    RECT dockRect{0, 440, SCREEN_WIDTH, SCREEN_HEIGHT};
-    FillRect(dc, &dockRect, dock);
+    centeredText(dc, ipaStatus.c_str(), 392, 18, RGB(65, 75, 90), 9);
+    HBRUSH dock = CreateSolidBrush(RGB(235, 239, 246));
+    RECT dockRect{8, 418, SCREEN_WIDTH - 8, SCREEN_HEIGHT - 8};
+    HBRUSH oldBrush = static_cast<HBRUSH>(SelectObject(dc, dock));
+    HPEN pen = CreatePen(PS_SOLID, 1, RGB(215, 222, 232));
+    HPEN oldPen = static_cast<HPEN>(SelectObject(dc, pen));
+    RoundRect(dc, dockRect.left, dockRect.top, dockRect.right,
+              dockRect.bottom, 18, 18);
+    SelectObject(dc, oldBrush);
+    SelectObject(dc, oldPen);
     DeleteObject(dock);
-    roundedBox(dc, 135, 452, 185, 468, 8, RGB(105, 112, 122));
+    DeleteObject(pen);
+    centeredText(dc, L"Ctrl+I  Установить IPA", 425, 18,
+                 RGB(55, 65, 80), 10, true);
+    centeredText(dc, L"Ctrl+U  Удалить последнее", 445, 18,
+                 RGB(75, 85, 100), 9);
+    roundedBox(dc, 135, 462, 185, 468, 8, RGB(105, 112, 122));
 }
 
 LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lParam) {
@@ -417,17 +478,24 @@ LRESULT CALLBACK windowProc(HWND window, UINT message, WPARAM wParam, LPARAM lPa
     case WM_LBUTTONDOWN: {
         const int x = GET_X_LPARAM(lParam);
         const int y = GET_Y_LPARAM(lParam);
-        if (!appOpen && x >= 110 && x <= 210 && y >= 115 && y <= 220) {
-            appOpen = true;
-            InvalidateRect(window, nullptr, TRUE);
-        } else if (appOpen && y < 65) {
-            appOpen = false;
-            InvalidateRect(window, nullptr, TRUE);
-        } else if (y >= 440) {
-            appOpen = false;
-            InvalidateRect(window, nullptr, TRUE);
-        } else if (!appOpen && y >= 350 && y <= 410) {
-            installIpa(window);
+        const auto apps = getHomeApps();
+        if (apps.empty() && x >= 125 && x <= 195 && y >= 95 && y <= 185) {
+            MessageBoxW(window,
+                L"Это демонстрационная иконка. Установи IPA сочетанием Ctrl+I.",
+                L"OldiOS — пример приложения", MB_OK | MB_ICONINFORMATION);
+        } else if (!apps.empty() && y >= 80 && y < 365) {
+            const int column = (x - 20) / 76;
+            const int row = (y - 88) / 91;
+            if (column >= 0 && column < 4 && row >= 0) {
+                const std::size_t index = static_cast<std::size_t>(row * 4 + column);
+                if (index < apps.size()) {
+                    const std::wstring message = apps[index].name +
+                        L"\n\nПриложение установлено, но выполнение iOS-кода "
+                        L"в текущей версии эмулятора ещё не реализовано.";
+                    MessageBoxW(window, message.c_str(), L"OldiOS",
+                                MB_OK | MB_ICONINFORMATION);
+                }
+            }
         }
         return 0;
     }
