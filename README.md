@@ -10,7 +10,8 @@ Implemented:
 - IPA ZIP central-directory parsing
 - ZIP stored and deflate decompression (vendored miniz 2.1.0)
 - Safe extraction of the complete `Payload/<App>.app` bundle into `./Applications` (Ctrl+I)
-- Basic home-screen label for the installed bundle
+- iPhone-style home screen with a grid of installed app tiles and generated letter icons
+- A demo placeholder icon when no IPA is installed
 - Removal of the app installed during the current emulator session (Ctrl+U)
 - Safe extraction of the app's main executable into the system temporary directory
 - ZIP CRC validation
@@ -51,7 +52,7 @@ Controls:
 - `Ctrl+U` — remove the app installed during the current emulator session.
 - `Ctrl+O` — inspect the IPA executable and open the ARM debugger.
 
-The home screen currently shows a generic placeholder tile and the installed bundle name; it does not yet read or display the app's real icon. Installing copies the app bundle but does not launch it. The current uninstaller tracks the app installed in the current session only.
+The home screen scans the `Applications` folder and displays installed `.app` bundles in a grid. Until real iOS icon extraction is implemented, each app gets a generated colored tile with its first letter; when no apps are installed, a demo placeholder tile is shown. Clicking an app explains that execution is not implemented yet. Installing copies the app bundle but does not launch it. The current uninstaller tracks the app installed in the current session only.
 
 ## Third-party code
 
