@@ -630,11 +630,103 @@ void Armv6::executeThumb(std::uint16_t ins, std::uint32_t address) {
         switch (op) {
         case 0x0: result = a & b; regs_[rdn] = result; setNZ(result); return; // AND
         case 0x1: result = a ^ b; regs_[rdn] = result; setNZ(result); return; // EOR
-        case 0x2: result = a << (b & 0xFFu); regs_[rdn] = result; setNZ(result); return;
-        case 0x3: result = a >> (b & 0xFFu); regs_[rdn] = result; setNZ(result); return;
-        case 0x4: result = static_cast<std::uint32_t>(static_cast<std::int32_t>(a) >> (b & 0xFFu)); regs_[rdn] = result; setNZ(result); return;
-        case 0x5: { const std::uint32_t carryIn = (cpsr_ & FLAG_C) ? 1u : 0u; result = a + b + carryIn; regs_[rdn] = result; addFlags(a, b + carryIn, result); return; }
-        case 0x6: { const std::uint32_t borrow = (cpsr_ & FLAG_C) ? 0u : 1u; result = a - b - borrow; regs_[rdn] = result; subFlags(a, b + borrow, result); return; }
+        case 0x2: { // LSL register
+            const unsigned amount = b & 0xFFu;
+            bool carry = (cpsr_ & FLAG_C) != 0;
+            if (amount == 0) {
+                result = a;
+            } else if (amount < 32) {
+                carry = ((a >> (32u - amount)) & 1u) != 0;
+                result = a << amount;
+            } else if (amount == 32) {
+                carry = (a & 1u) != 0;
+                result = 0;
+            } else {
+                carry = false;
+                result = 0;
+            }
+            regs_[rdn] = result;
+            setNZ(result);
+            cpsr_ = (cpsr_ & ~FLAG_C) | (carry ? FLAG_C : 0);
+            return;
+        }
+        case 0x3: { // LSR register
+            const unsigned amount = b & 0xFFu;
+            bool carry = (cpsr_ & FLAG_C) != 0;
+            if (amount == 0) {
+                result = a;
+            } else if (amount < 32) {
+                carry = ((a >> (amount - 1u)) & 1u) != 0;
+                result = a >> amount;
+            } else if (amount == 32) {
+                carry = (a >> 31) != 0;
+                result = 0;
+            } else {
+                carry = false;
+                result = 0;
+            }
+            regs_[rdn] = result;
+            setNZ(result);
+            cpsr_ = (cpsr_ & ~FLAG_C) | (carry ? FLAG_C : 0);
+            return;
+        }
+        case 0x4: { // ASR register
+            const unsigned amount = b & 0xFFu;
+            bool carry = (cpsr_ & FLAG_C) != 0;
+            if (amount == 0) {
+                result = a;
+            } else {
+                const bool negative = (a & 0x80000000u) != 0;
+                if (amount < 32) {
+                    carry = ((a >> (amount - 1u)) & 1u) != 0;
+                    result = static_cast<std::uint32_t>(
+                        static_cast<std::int32_t>(a) >> amount);
+                } else {
+                    carry = negative;
+                    result = negative ? 0xFFFFFFFFu : 0u;
+                }
+            }
+            regs_[rdn] = result;
+            setNZ(result);
+            cpsr_ = (cpsr_ & ~FLAG_C) | (carry ? FLAG_C : 0);
+            return;
+        }
+        case 0x5: { // ADC
+            const std::uint32_t carryIn = (cpsr_ & FLAG_C) ? 1u : 0u;
+            const std::uint64_t wide = std::uint64_t(a) + b + carryIn;
+            result = static_cast<std::uint32_t>(wide);
+            const auto toSigned = [](std::uint32_t value) -> std::int64_t {
+                return (value & 0x80000000u)
+                    ? static_cast<std::int64_t>(value) - 0x100000000ll
+                    : static_cast<std::int64_t>(value);
+            };
+            const std::int64_t signedWide = toSigned(a) + toSigned(b) + carryIn;
+            regs_[rdn] = result;
+            cpsr_ &= ~(FLAG_N | FLAG_Z | FLAG_C | FLAG_V);
+            if (result & 0x80000000u) cpsr_ |= FLAG_N;
+            if (result == 0) cpsr_ |= FLAG_Z;
+            if (wide > 0xFFFFFFFFull) cpsr_ |= FLAG_C;
+            if (signedWide > 0x7FFFFFFFll || signedWide < -0x80000000ll) cpsr_ |= FLAG_V;
+            return;
+        }
+        case 0x6: { // SBC
+            const std::uint32_t borrow = (cpsr_ & FLAG_C) ? 0u : 1u;
+            const std::uint64_t subtrahend = std::uint64_t(b) + borrow;
+            result = static_cast<std::uint32_t>(std::uint64_t(a) - subtrahend);
+            const auto toSigned = [](std::uint32_t value) -> std::int64_t {
+                return (value & 0x80000000u)
+                    ? static_cast<std::int64_t>(value) - 0x100000000ll
+                    : static_cast<std::int64_t>(value);
+            };
+            const std::int64_t signedWide = toSigned(a) - toSigned(b) - borrow;
+            regs_[rdn] = result;
+            cpsr_ &= ~(FLAG_N | FLAG_Z | FLAG_C | FLAG_V);
+            if (result & 0x80000000u) cpsr_ |= FLAG_N;
+            if (result == 0) cpsr_ |= FLAG_Z;
+            if (std::uint64_t(a) >= subtrahend) cpsr_ |= FLAG_C;
+            if (signedWide > 0x7FFFFFFFll || signedWide < -0x80000000ll) cpsr_ |= FLAG_V;
+            return;
+        }
         case 0x7: { const unsigned n = b & 0xFFu; result = n == 0 ? a : ((a >> (n & 31u)) | (a << ((32u - n) & 31u))); regs_[rdn] = result; setNZ(result); if (n) cpsr_ = (cpsr_ & ~FLAG_C) | ((result >> 31) ? FLAG_C : 0); return; }
         case 0x8: result = a & b; setNZ(result); return; // TST
         case 0x9: result = 0u - b; regs_[rdn] = result; subFlags(0, b, result); return; // NEG
@@ -735,6 +827,15 @@ void Armv6::executeThumb(std::uint16_t ins, std::uint32_t address) {
         const unsigned rd = (ins >> 8) & 7u;
         const std::uint32_t base = (ins & 0x0800u) ? regs_[13] : ((address + 4) & ~3u);
         regs_[rd] = base + ((ins & 0xFFu) << 2);
+        return;
+    }
+
+    // Sign-extend byte to a 32-bit register (Thumb SXTB).
+    if ((ins & 0xFFC0u) == 0xB240u) {
+        const unsigned rm = (ins >> 3) & 7u;
+        const unsigned rd = ins & 7u;
+        const auto value = static_cast<std::int8_t>(regs_[rm] & 0xFFu);
+        regs_[rd] = static_cast<std::uint32_t>(static_cast<std::int32_t>(value));
         return;
     }
 
