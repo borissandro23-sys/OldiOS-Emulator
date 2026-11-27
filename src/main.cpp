@@ -313,9 +313,9 @@ void installIpa(HWND window) {
     std::wstring appName = installedPath.stem().wstring();
     if (!appName.empty()) installedAppName = appName;
     ipaStatus = L"Установлено: " + installedAppName;
-    const std::wstring message = L"Приложение установлено!\n\n" +
+    const std::wstring message = L"Пакет приложения распакован и сохранён.\n\n" +
         installedAppName + L"\n\nПапка:\n" + installedPath.wstring() +
-        L"\n\nИконка добавлена на домашний экран. Запуск настоящего iOS-кода пока не поддерживается.";
+        L"\n\nВ OldiOS доступна только тестовая плитка приложения. Настоящий код iOS не запускался и пока не поддерживается.";
     MessageBoxW(window, message.c_str(), L"OldiOS — установка завершена",
                 MB_OK | MB_ICONINFORMATION);
     InvalidateRect(window, nullptr, TRUE);
