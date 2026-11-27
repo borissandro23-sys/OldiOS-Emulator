@@ -82,6 +82,38 @@ int main() {
     ok &= expect(!loadMachOImage(path, image, error),
                  "undersized LC_SEGMENT should be rejected");
 
+    // LC_UNIXTHREAD ARM_THREAD_STATE carries r0-r15 and CPSR.
+    std::vector<std::uint8_t> threaded(172, 0);
+    put32(threaded, 0, 0xfeedfaceu);
+    put32(threaded, 4, 12u);
+    put32(threaded, 8, 6u);
+    put32(threaded, 12, 2u);
+    put32(threaded, 16, 2u);
+    put32(threaded, 20, 140u);
+    put32(threaded, 28, 1u); put32(threaded, 32, 56u);
+    const char textName[] = "__TEXT";
+    for (std::size_t i = 0; i < 6; ++i) threaded[36 + i] = textName[i];
+    put32(threaded, 52, 0x1000u);
+    put32(threaded, 56, 4u);
+    put32(threaded, 60, 168u);
+    put32(threaded, 64, 4u);
+    put32(threaded, 84, 5u);       // LC_UNIXTHREAD
+    put32(threaded, 88, 84u);      // command size
+    put32(threaded, 92, 1u);       // ARM_THREAD_STATE
+    put32(threaded, 96, 17u);      // 17 32-bit words
+    put32(threaded, 100, 42u);     // r0
+    put32(threaded, 100 + 13u * 4u, 0x2000u); // SP
+    put32(threaded, 100 + 15u * 4u, 0x1000u); // PC
+    put32(threaded, 100 + 16u * 4u, 1u << 5); // Thumb CPSR
+    threaded[168] = 0x07; threaded[169] = 0x20;
+    ok &= expect(writeFixture(path, threaded), "write ARM thread-state fixture");
+    ok &= expect(loadMachOImage(path, image, error), "parse ARM thread-state fixture");
+    ok &= expect(image.hasThreadState, "thread state should be recorded");
+    ok &= expect(image.initialRegisters[0] == 42u, "initial r0 should be preserved");
+    ok &= expect(image.initialRegisters[13] == 0x2000u, "initial SP should be parsed");
+    ok &= expect(image.entryPoint == 0x1000u, "PC should become the entry point");
+    ok &= expect((image.initialCpsr & (1u << 5)) != 0, "Thumb CPSR bit should be parsed");
+
     std::error_code ec;
     std::filesystem::remove(path, ec);
     if (!ok) return 1;
