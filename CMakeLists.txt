@@ -31,7 +31,7 @@ endif()
 target_include_directories(oldios-emu PRIVATE include third_party)
 
 if (MSVC)
-    target_compile_options(oldios-emu PRIVATE /W4)
+    target_compile_options(oldios-emu PRIVATE /W4 /utf-8)
 else()
     target_compile_options(oldios-emu PRIVATE -Wall -Wextra -Wpedantic)
 endif()
