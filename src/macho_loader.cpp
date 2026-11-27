@@ -97,9 +97,14 @@ bool loadMachOImage(const std::filesystem::path& path, MachOImage& image, std::s
                 const std::uint64_t stateBytes = std::uint64_t(count) * 4;
                 if (stateBytes > cmdEnd - state) break;
                 // ARM_THREAD_STATE: r0-r15, CPSR; PC is register r15.
-                if (flavor == 1u && count >= 16u) {
-                    image.entryPoint = read32(bytes, state + 15u * 4u, be);
+                if (flavor == 1u && count >= 17u) {
+                    // ARM_THREAD_STATE contains r0-r15 followed by CPSR.
+                    for (std::size_t r = 0; r < image.initialRegisters.size(); ++r)
+                        image.initialRegisters[r] = read32(bytes, state + r * 4u, be);
+                    image.entryPoint = image.initialRegisters[15];
+                    image.initialCpsr = read32(bytes, state + 16u * 4u, be);
                     image.hasEntryPoint = true;
+                    image.hasThreadState = true;
                     break;
                 }
                 state += static_cast<std::size_t>(stateBytes);
@@ -113,12 +118,21 @@ bool loadMachOImage(const std::filesystem::path& path, MachOImage& image, std::s
         image = {}; return false;
     }
     if (image.hasEntryPoint) {
+        const bool thumb = (image.initialCpsr & (1u << 5)) != 0;
+        const std::uint32_t instructionBytes = thumb ? 2u : 4u;
         const bool valid = std::any_of(image.segments.begin(), image.segments.end(),
             [&](const MachOSegment& s) {
                 return image.entryPoint >= s.vmAddress &&
-                    std::uint64_t(image.entryPoint) < std::uint64_t(s.vmAddress) + s.vmSize;
+                    std::uint64_t(image.entryPoint) + instructionBytes <=
+                        std::uint64_t(s.vmAddress) + s.vmSize;
             });
-        if (!valid) { image.hasEntryPoint = false; image.entryPoint = 0; }
+        if (!valid || (image.entryPoint & (thumb ? 1u : 3u))) {
+            image.hasEntryPoint = false;
+            image.hasThreadState = false;
+            image.entryPoint = 0;
+            image.initialRegisters.fill(0);
+            image.initialCpsr = 0;
+        }
     }
     return true;
 }
