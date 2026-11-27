@@ -31,7 +31,7 @@ std::wstring utf8ToWide(const std::string& value) {
     if (size <= 0) {
         return L"[текст в неизвестной кодировке]";
     }
-    std::wstring result(static_cast<std::size_t>(size), L'\\0');
+    std::wstring result(static_cast<std::size_t>(size), L'\0');
     MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS,
                         value.data(), static_cast<int>(value.size()),
                         result.data(), size);
@@ -334,7 +334,7 @@ void uninstallIpa(HWND window) {
     std::error_code ec;
     std::filesystem::remove_all(installedBundlePath, ec);
     if (ec) {
-        MessageBoxW(window, ec.message().c_str(), L"Не удалось удалить приложение",
+        MessageBoxW(window, utf8ToWide(ec.message()).c_str(), L"Не удалось удалить приложение",
                     MB_OK | MB_ICONERROR);
         return;
     }
