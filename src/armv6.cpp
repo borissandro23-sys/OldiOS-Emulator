@@ -84,14 +84,16 @@ void Armv6::loadImage(const MachOImage& image) {
         }
     }
 
+    const bool thumbEntry = image.hasThreadState && (image.initialCpsr & (1u << 5));
+    const std::uint32_t entryInstructionBytes = thumbEntry ? 2u : 4u;
     const bool entryMapped = std::any_of(image.segments.begin(), image.segments.end(),
         [&](const MachOSegment& segment) {
             return image.entryPoint >= segment.vmAddress &&
-                std::uint64_t(image.entryPoint) + 4 <=
+                std::uint64_t(image.entryPoint) + entryInstructionBytes <=
                     std::uint64_t(segment.vmAddress) + segment.vmSize;
         });
-    if (!entryMapped || (image.entryPoint & 3u))
-        throw std::runtime_error("Mach-O entry point is not a mapped, aligned ARM instruction.");
+    if (!entryMapped || (image.entryPoint & (thumbEntry ? 1u : 3u)))
+        throw std::runtime_error("Mach-O entry point is not a mapped, aligned ARM/Thumb instruction.");
 
     memoryBase_ = static_cast<std::uint32_t>(low);
     memory_.assign(static_cast<std::size_t>(high - low + STACK_SIZE), 0);
@@ -100,6 +102,10 @@ void Armv6::loadImage(const MachOImage& image) {
         std::copy(segment.memory.begin(), segment.memory.end(), memory_.begin() + offset);
     }
     reset();
+    if (image.hasThreadState) {
+        regs_ = image.initialRegisters;
+        cpsr_ = image.initialCpsr;
+    }
 
     // Build a minimal Darwin-style initial stack:
     // argc = 0, argv[0] = NULL, envp[0] = NULL, apple[0] = NULL.
